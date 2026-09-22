@@ -3,6 +3,34 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Figma colors */
+  --absoluteblack: rgba(0, 0, 0, 1);
+  --absolutewhite: rgba(255, 255, 255, 1);
+  --dark-03: rgba(7, 7, 8, 1);
+  --dark-06: rgba(14, 14, 16, 1);
+  --dark-08: rgba(19, 19, 22, 1);
+  --dark-12: rgba(28, 28, 33, 1);
+  --dark-15: rgba(35, 35, 41, 1);
+  --dark-20: rgba(47, 47, 55, 1);
+  --dark-25: rgba(59, 59, 69, 1);
+  --dark-30: rgba(71, 71, 82, 1);
+  --grey-40: rgba(98, 100, 108, 1);
+  --grey-50: rgba(121, 124, 134, 1);
+  --grey-70: rgba(175, 176, 182, 1);
+  --grey-80: rgba(202, 202, 206, 1);
+  --grey-90: rgba(228, 228, 230, 1);
+  --grey-95: rgba(242, 242, 243, 1);
+  --grey-97: rgba(247, 247, 248, 1);
+  --grey-99: rgba(252, 252, 253, 1);
+  --purple-55: rgba(74, 44, 237, 1);
+  --purple-60: rgba(94, 67, 239, 1);
+  --purple-70: rgba(134, 114, 243, 1);
+  --purple-80: rgba(174, 161, 247, 1);
+  --purple-90: rgba(214, 208, 251, 1);
+  --purple-95: rgba(234, 231, 253, 1);
+  --purple-97: rgba(243, 241, 254, 1);
+  --purple-99: rgba(251, 250, 255, 1);
 }
 
 @theme inline {
@@ -10,6 +38,45 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-absoluteblack: var(--absoluteblack);
+  --color-absolutewhite: var(--absolutewhite);
+  --color-dark-03: var(--dark-03);
+  --color-dark-06: var(--dark-06);
+  --color-dark-08: var(--dark-08);
+  --color-dark-12: var(--dark-12);
+  --color-dark-15: var(--dark-15);
+  --color-dark-20: var(--dark-20);
+  --color-dark-25: var(--dark-25);
+  --color-dark-30: var(--dark-30);
+  --color-grey-40: var(--grey-40);
+  --color-grey-50: var(--grey-50);
+  --color-grey-70: var(--grey-70);
+  --color-grey-80: var(--grey-80);
+  --color-grey-90: var(--grey-90);
+  --color-grey-95: var(--grey-95);
+  --color-grey-97: var(--grey-97);
+  --color-grey-99: var(--grey-99);
+  --color-purple-55: var(--purple-55);
+  --color-purple-60: var(--purple-60);
+  --color-purple-70: var(--purple-70);
+  --color-purple-80: var(--purple-80);
+  --color-purple-90: var(--purple-90);
+  --color-purple-95: var(--purple-95);
+  --color-purple-97: var(--purple-97);
+  --color-purple-99: var(--purple-99);
+}
+
+@utility all-unset {
+    all: unset;
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,7 +87,8 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--dark-03);
+  color: var(--absolutewhite);
   font-family: Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
 }
