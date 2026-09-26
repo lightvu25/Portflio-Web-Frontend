@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { StaticImageData } from "next/image";
 import buttonsContainer2 from "./buttons-container-2.svg";
 import buttonsContainer3 from "./buttons-container-3.svg";
 import buttonsContainer4 from "./buttons-container-4.svg";
@@ -59,7 +60,7 @@ type Package = {
 type PhotographyCategory = {
   title: string;
   description: string;
-  image: string;
+  image: StaticImageData;
   controls: string;
   projectArrow: string;
   packages: Package[];
@@ -280,7 +281,7 @@ const ArrowButton = ({
   label,
   arrow,
   onClick,
-}: ArrowButtonProps): JSX.Element => {
+}: ArrowButtonProps) => {
   return (
     <button
       type="button"
@@ -301,7 +302,7 @@ const ArrowButton = ({
   );
 };
 
-export const PhotographyPricingSection = (): JSX.Element => {
+export const PhotographyPricingSection = () => {
   const [announcement, setAnnouncement] = useState("");
 
   const announceProjectView = (category: string) => {
@@ -343,7 +344,7 @@ export const PhotographyPricingSection = (): JSX.Element => {
               <img
                 className="relative self-stretch w-full h-[360px] object-cover"
                 alt={`${category.title.toLowerCase()} showcase`}
-                src={category.image}
+                src={category.image.src}
               />
               <button
                 type="button"

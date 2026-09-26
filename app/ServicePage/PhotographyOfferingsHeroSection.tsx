@@ -2,7 +2,7 @@ import ellipse1Stroke from "./ellipse-1-stroke.svg";
 import image from "./image.png";
 import star from "./star.svg";
 
-export const PhotographyOfferingsHeroSection = (): JSX.Element => {
+export const PhotographyOfferingsHeroSection = () => {
   return (
     <section
       className="absolute top-[219px] left-[162px] flex w-[1596px] flex-col items-start"
@@ -31,7 +31,7 @@ export const PhotographyOfferingsHeroSection = (): JSX.Element => {
         <img
           className="relative h-[784px] w-full self-stretch object-cover"
           alt="Photography studio with lighting equipment"
-          src={image}
+          src={image.src}
         />
         <div className="relative mt-[-264px] flex w-full flex-[0_0_auto] items-center justify-between py-[18px] pl-5 pr-[50px]">
           <div className="relative h-[137px] w-[137px]" aria-hidden="true">

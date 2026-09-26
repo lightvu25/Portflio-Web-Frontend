@@ -65,7 +65,7 @@ const socialLinks = [
   { label: "LinkedIn", href: "https://www.linkedin.com/" },
 ];
 
-export const SiteFooterSection = (): JSX.Element => {
+export const SiteFooterSection = () => {
   return (
     <section
       className="flex w-full min-w-[1920px] flex-col items-start bg-dark-06"

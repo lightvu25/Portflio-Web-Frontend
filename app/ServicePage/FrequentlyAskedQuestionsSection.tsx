@@ -82,7 +82,7 @@ const rightFaqs: FaqItem[] = [
   },
 ];
 
-export const FrequentlyAskedQuestionsSection = (): JSX.Element => {
+export const FrequentlyAskedQuestionsSection = () => {
   const [openItems, setOpenItems] = useState<Set<string>>(
     new Set(
       [...leftFaqs, ...rightFaqs]
