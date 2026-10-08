@@ -1,3 +1,5 @@
-export default function AdminPhotosPage() {
-  return <div>Admin Photos</div>;
+import { AdminPhotosPage } from "@/components/admin/photos/PhotosPage";
+
+export default function Page() {
+  return <AdminPhotosPage />;
 }

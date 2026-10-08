@@ -1,3 +1,5 @@
-export default function AdminBookingsPage() {
-  return <div>Admin Bookings</div>;
+import { AdminBookingsPage } from "@/components/admin/bookings/BookingsPage";
+
+export default function Page() {
+  return <AdminBookingsPage />;
 }

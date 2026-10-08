@@ -46,6 +46,11 @@ export function updatePhoto(token: string, id: number, request: PhotoUpdateReque
   return apiFetch<Photo>(`/api/admin/photos/${id}`, { method: "PUT", body: request, token });
 }
 
+/** Atomic batch reorder — one request persists the final order. */
+export function reorderPhotos(token: string, items: { id: number; sortOrder: number }[]): Promise<Photo[]> {
+  return apiFetch<Photo[]>("/api/admin/photos/reorder", { method: "PUT", body: items, token });
+}
+
 export function publishPhoto(token: string, id: number): Promise<Photo> {
   return apiFetch<Photo>(`/api/admin/photos/${id}/publish`, { method: "POST", token });
 }

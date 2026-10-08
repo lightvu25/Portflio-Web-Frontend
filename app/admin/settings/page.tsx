@@ -1,3 +1,5 @@
-export default function AdminSettingsPage() {
-  return <div>Admin Settings</div>;
+import { AdminSettingsPage } from "@/components/admin/settings/SettingsPage";
+
+export default function Page() {
+  return <AdminSettingsPage />;
 }

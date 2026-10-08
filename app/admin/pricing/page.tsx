@@ -1,3 +1,5 @@
-export default function AdminPricingPage() {
-  return <div>Admin Pricing</div>;
+import { AdminPricingPage } from "@/components/admin/pricing/PricingAdminPage";
+
+export default function Page() {
+  return <AdminPricingPage />;
 }

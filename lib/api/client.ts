@@ -63,3 +63,25 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
+
+/**
+ * Turns any thrown value into a useful Vietnamese message for the UI.
+ * ApiError messages from the backend are preserved verbatim — never hide
+ * the real cause behind a generic string.
+ */
+export function describeApiError(err: unknown): string {
+  if (err instanceof ApiError) {
+    const statusText: Record<number, string> = {
+      400: "Dữ liệu không hợp lệ",
+      401: "Phiên đăng nhập đã hết hạn — vui lòng đăng nhập lại",
+      403: "Bạn không có quyền thực hiện thao tác này",
+      413: "Ảnh hoặc tổng dung lượng tải lên vượt quá giới hạn",
+      502: "Không thể tải ảnh lên bộ nhớ ảnh",
+      503: "Không thể tải ảnh lên bộ nhớ ảnh",
+    };
+    const label = statusText[err.status] ?? `HTTP ${err.status}`;
+    return `${label}: ${err.message}`;
+  }
+  if (err instanceof TypeError) return "Không thể kết nối tới máy chủ.";
+  return err instanceof Error ? err.message : "Lỗi không xác định.";
+}

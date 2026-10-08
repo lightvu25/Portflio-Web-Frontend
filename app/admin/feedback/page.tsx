@@ -1,3 +1,5 @@
-export default function AdminFeedbackPage() {
-  return <div>Admin Feedback</div>;
+import { AdminFeedbackPage } from "@/components/admin/feedback/FeedbackAdminPage";
+
+export default function Page() {
+  return <AdminFeedbackPage />;
 }

@@ -1,3 +1,5 @@
-export default function AdminLoginPage() {
-  return <div>Admin Login</div>;
+import { AdminLoginPage } from "@/components/admin/auth/LoginPage";
+
+export default function Page() {
+  return <AdminLoginPage />;
 }
