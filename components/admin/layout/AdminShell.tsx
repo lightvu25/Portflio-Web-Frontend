@@ -46,7 +46,7 @@ function SidebarInner({ onNavigate, onLogout }: { onNavigate?: () => void; onLog
     <div className="flex h-full flex-col">
       <div className="px-6 py-7">
         <p className="text-xl font-bold tracking-wide text-gray-900">
-          BẤU CHỤP CHOÉT <span className="font-light text-gray-400">ADMIN</span>
+          BẤU CHỤP CHOẸT <span className="font-light text-gray-400">ADMIN</span>
         </p>
       </div>
       <div className="mx-5 border-t border-gray-100" />

@@ -49,7 +49,7 @@ export function PhotoDetail({
             alt={photo.altText ?? photo.title ?? "Ảnh"}
             fill
             priority
-            sizes="(min-width: 1024px) 60vw, 100vw"
+            sizes="(min-width: 1400px) 792px, (min-width: 1024px) calc(60vw - 48px), calc(100vw - 40px)"
             className="object-cover"
           />
           <Link href={`/gallery/${prevId}`} aria-label="Ảnh trước" className={`${arrowBtn} left-4`}>

@@ -71,10 +71,15 @@ export function AdminPhotosPage() {
   const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState<Photo | null>(null);
   const [dragId, setDragId] = useState<number | null>(null);
-  /** Position (in the list excluding the dragged card) where a drop will insert. */
+  /** Slot in the list (excluding the dragged card) where a drop will insert. */
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
+  /** Absolute position of the thin insertion bar inside the grid. */
+  const [indicator, setIndicator] = useState<{ left: number; top: number; height: number } | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
+  /** Category id filter for the grid (reorder is global — disabled while filtered). */
+  const [catFilter, setCatFilter] = useState<number | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   // Mirror of `pending` for unmount cleanup.
   const pendingRef = useRef<PendingFile[]>([]);
@@ -207,40 +212,68 @@ export function AdminPhotosPage() {
   };
 
   const sorted = [...photos].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
-  /** Cards shown in the grid — the dragged card is hidden, replaced by the gap. */
-  const displayPhotos = dragId == null ? sorted : sorted.filter((p) => p.id !== dragId);
+  const visiblePhotos = catFilter == null ? sorted : sorted.filter((p) => p.categories.some((c) => c.id === catFilter));
+  /** Cards without the dragged one — the insertion index addresses this list. */
+  const others = dragId == null ? sorted : sorted.filter((p) => p.id !== dragId);
+  const othersIndex = new Map(others.map((p, i) => [p.id, i]));
 
   // ---------- Insertion-based drag-to-reorder ----------
+  // IMPORTANT: the dragged card must STAY in the DOM — removing it mid-drag
+  // makes Chrome abort the drag session (the gap rendered but drop never fired).
   const startDrag = (e: React.DragEvent, photo: Photo) => {
     if (savingOrder) {
       e.preventDefault();
       return;
     }
     setDragId(photo.id);
-    // The gap starts where the card was, so it looks like the card left a hole.
-    setInsertIndex(sorted.findIndex((p) => p.id === photo.id));
+    const card = (e.currentTarget as HTMLElement).closest("article");
+    const cardRect = card?.getBoundingClientRect();
+    if (card && cardRect) {
+      // Use the whole card as the drag ghost, anchored where the handle was grabbed.
+      e.dataTransfer.setDragImage(card, e.clientX - cardRect.left, e.clientY - cardRect.top);
+    }
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", String(photo.id));
+    // Indicator starts at the card's own slot.
+    setInsertIndex(othersIndex.get(photo.id) ?? 0);
+    if (cardRect && gridRef.current) {
+      const cr = gridRef.current.getBoundingClientRect();
+      setIndicator({ left: cardRect.left - cr.left - 10, top: cardRect.top - cr.top, height: cardRect.height });
+    }
   };
 
-  /** Pointer over card `i`: left half = insert before, right half = after. */
-  const overCard = (e: React.DragEvent, i: number) => {
+  const endDrag = () => {
+    setDragId(null);
+    setInsertIndex(null);
+    setIndicator(null);
+  };
+
+  /** Pointer over card: left half = insert before it, right half = after it. */
+  const overCard = (e: React.DragEvent, photo: Photo) => {
     if (dragId == null) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
+    const j = othersIndex.get(photo.id);
+    if (j == null) return; // hovering the dragged card's own slot — keep indicator
     const rect = e.currentTarget.getBoundingClientRect();
-    setInsertIndex(e.clientX < rect.left + rect.width / 2 ? i : i + 1);
+    const before = e.clientX < rect.left + rect.width / 2;
+    setInsertIndex(before ? j : j + 1);
+    if (gridRef.current) {
+      const cr = gridRef.current.getBoundingClientRect();
+      // Bar sits mid-gap between cards (gap-4 = 16px).
+      const x = before ? rect.left - cr.left - 10 : rect.right - cr.left + 6;
+      setIndicator({ left: x, top: rect.top - cr.top, height: rect.height });
+    }
   };
 
   /** One persistence request — the final order, atomically. */
   const commitReorder = async () => {
     const id = dragId;
     const idx = insertIndex;
-    setDragId(null);
-    setInsertIndex(null);
+    endDrag();
     if (!token || id == null || idx == null) return;
 
-    const ids = displayPhotos.map((p) => p.id);
+    const ids = others.map((p) => p.id);
     ids.splice(Math.min(idx, ids.length), 0, id);
     if (ids.join() === sorted.map((p) => p.id).join()) return; // order unchanged
 
@@ -342,7 +375,7 @@ export function AdminPhotosPage() {
                             : "bg-gray-200 text-gray-600 hover:bg-gray-300"
                         }`}
                       >
-                        {c.name}
+                        {c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name}
                       </button>
                     ))}
                   </div>
@@ -390,7 +423,21 @@ export function AdminPhotosPage() {
               {savingOrder ? "Đang lưu thứ tự…" : "Kéo thả để sắp xếp"}
             </span>
           </h2>
-          <Btn variant="ghost" onClick={() => token && load(token)}>Làm mới</Btn>
+          <div className="flex items-center gap-2">
+            <select
+              className={`${inputCls} w-44`}
+              value={catFilter ?? ""}
+              onChange={(e) => setCatFilter(e.target.value === "" ? null : Number(e.target.value))}
+            >
+              <option value="">Tất cả danh mục</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name}
+                </option>
+              ))}
+            </select>
+            <Btn variant="ghost" onClick={() => token && load(token)}>Làm mới</Btn>
+          </div>
         </div>
         {orderError && (
           <p className="mb-4 rounded-[10px] bg-red-50 px-4 py-3 text-sm text-red-600">{orderError}</p>
@@ -399,41 +446,35 @@ export function AdminPhotosPage() {
           <div className="flex justify-center py-16"><Spinner /></div>
         ) : error ? (
           <p className="py-8 text-center text-sm text-red-600">{error}</p>
-        ) : sorted.length === 0 ? (
+        ) : visiblePhotos.length === 0 ? (
           <EmptyState title="Chưa có ảnh nào" hint="Chọn ảnh ở trên để tải lên." />
         ) : (
           <div
-            className="grid grid-cols-2 items-stretch gap-4 md:grid-cols-3 xl:grid-cols-4"
+            ref={gridRef}
+            className="relative grid grid-cols-2 items-stretch gap-4 md:grid-cols-3 xl:grid-cols-4"
             onDragOver={(e) => dragId != null && e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
               commitReorder();
             }}
           >
-            {displayPhotos.flatMap((p, i) => {
-              const cells = [];
-              if (insertIndex === i) {
-                cells.push(
-                  <div
-                    key="insert-gap"
-                    onDragOver={(e) => e.preventDefault()}
-                    className="flex items-center justify-center rounded-xl border-2 border-dashed border-green-400 bg-green-50 text-xs font-medium text-green-600"
-                  >
-                    Thả vào đây
-                  </div>,
-                );
-              }
-              cells.push(
+            {/* Thin insertion bar — positioned between cards, never changes layout */}
+            {dragId != null && indicator && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute z-10 w-1 rounded-full bg-green-500"
+                style={{ left: indicator.left, top: indicator.top, height: indicator.height }}
+              />
+            )}
+            {visiblePhotos.map((p) => (
               <article
                 key={p.id}
-                draggable={!savingOrder}
-                onDragStart={(e) => startDrag(e, p)}
-                onDragOver={(e) => overCard(e, i)}
-                onDragEnd={() => {
-                  setDragId(null);
-                  setInsertIndex(null);
-                }}
-                className="flex cursor-grab flex-col overflow-hidden rounded-xl border border-gray-200 bg-white transition-shadow hover:shadow-md active:cursor-grabbing"
+                onDragOver={(e) => overCard(e, p)}
+                className={`flex flex-col overflow-hidden rounded-xl border bg-white transition ${
+                  dragId === p.id
+                    ? "border-dashed border-green-400 opacity-40"
+                    : "border-gray-200 hover:shadow-md"
+                }`}
               >
                 <div className="relative aspect-square overflow-hidden bg-gray-100">
                   {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary thumbnail URL */}
@@ -454,12 +495,26 @@ export function AdminPhotosPage() {
                   <div className="mt-1 flex h-[22px] flex-nowrap gap-1 overflow-hidden">
                     {p.categories.map((c) => (
                       <span key={c.id} className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
-                        {c.name}
+                        {c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name}
                       </span>
                     ))}
                   </div>
-                  <p className="mt-1 text-[11px] text-gray-400">
+                  <p className="mt-1 flex items-center text-[11px] text-gray-400">
                     Thứ tự: {p.sortOrder} · {formatDate(p.createdAt)}
+                    {/* Drag handle — the ONLY element that starts a drag */}
+                    <span
+                      draggable={!savingOrder && catFilter == null}
+                      onDragStart={(e) => startDrag(e, p)}
+                      onDragEnd={endDrag}
+                      title="Kéo để sắp xếp"
+                      className="ml-auto inline-flex cursor-grab items-center justify-center rounded-md px-1.5 py-1 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-500 active:cursor-grabbing"
+                    >
+                      <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
+                        {[0, 5, 10].map((y) =>
+                          [3, 7].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y + 2} r="1.4" />),
+                        )}
+                      </svg>
+                    </span>
                   </p>
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => setEditing(p)}>
@@ -486,21 +541,8 @@ export function AdminPhotosPage() {
                     </Btn>
                   </div>
                 </div>
-              </article>,
-              );
-              if (insertIndex === displayPhotos.length && i === displayPhotos.length - 1) {
-                cells.push(
-                  <div
-                    key="insert-gap"
-                    onDragOver={(e) => e.preventDefault()}
-                    className="flex items-center justify-center rounded-xl border-2 border-dashed border-green-400 bg-green-50 text-xs font-medium text-green-600"
-                  >
-                    Thả vào đây
-                  </div>,
-                );
-              }
-              return cells;
-            })}
+              </article>
+            ))}
           </div>
         )}
       </Card>
@@ -598,7 +640,7 @@ function EditPhotoModal({
                   catIds.includes(c.id) ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
-                {c.name}
+                {c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name}
               </button>
             ))}
           </div>

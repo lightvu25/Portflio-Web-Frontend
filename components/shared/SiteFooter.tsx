@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CategoryMarquee } from "@/components/shared/CategoryMarquee";
+import { CONTACT, FacebookIcon, InstagramIcon } from "@/components/shared/contact";
 import { getCategories } from "@/lib/api/categories";
 import { getSiteSettings } from "@/lib/api/site";
 import type { Category } from "@/types/category";
@@ -25,19 +26,16 @@ export function SiteFooter() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [site, setSite] = useState<SiteSettings | null>(null);
 
+  const fetched = useRef(false);
   useEffect(() => {
+    if (fetched.current || pathname.startsWith("/admin")) return;
+    fetched.current = true;
     getCategories().then(setCategories).catch(() => {});
     getSiteSettings().then(setSite).catch(() => {});
-  }, []);
+  }, [pathname]);
 
   // Admin pages render their own chrome.
   if (pathname.startsWith("/admin")) return null;
-
-  const socials = [
-    { label: "Facebook", url: site?.facebookUrl },
-    { label: "Instagram", url: site?.instagramUrl },
-    { label: "Messenger", url: site?.messengerUrl },
-  ].filter((s) => s.url);
 
   return (
     <footer className="border-t border-dark-12">
@@ -121,20 +119,21 @@ export function SiteFooter() {
             <span aria-hidden="true" className="text-dark-20">|</span>
             <Link href="#" className={`${linkCls} text-xs`}>Bảo mật</Link>
           </div>
-          <div className="flex gap-3">
-            {socials.map((s) => (
-              <a key={s.label} href={s.url!} target="_blank" rel="noreferrer" aria-label={s.label} className={socialBtn}>
-                {s.label === "Facebook" && (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 21v-7h2.4l.4-3h-2.8V9.1c0-.9.3-1.5 1.6-1.5h1.3V5.1c-.6-.1-1.4-.2-2.2-.2-2.2 0-3.7 1.3-3.7 3.8V11H8v3h2.5v7h3z"/></svg>
-                )}
-                {s.label === "Instagram" && (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none"/></svg>
-                )}
-                {s.label === "Messenger" && (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C6.9 3 3 6.6 3 11.1c0 2.6 1.2 4.9 3.2 6.4V21l2.9-1.6c.9.3 1.9.4 2.9.4 5.1 0 9-3.6 9-8.1S17.1 3 12 3zm1 10.9-2.4-2.6-4.3 2.6 4.7-5 2.4 2.6 4.3-2.6-4.7 5z"/></svg>
-                )}
-              </a>
-            ))}
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
+            <a href={CONTACT.instagram} target="_blank" rel="noreferrer" aria-label="Instagram" className={socialBtn}>
+              <InstagramIcon />
+            </a>
+            <a href={CONTACT.facebook} target="_blank" rel="noreferrer" aria-label="Facebook" className={socialBtn}>
+              <FacebookIcon />
+            </a>
+            <span aria-hidden="true" className="text-dark-20">|</span>
+            <a href={CONTACT.mailto} className={`${linkCls} text-xs`}>
+              {CONTACT.email}
+            </a>
+            <span aria-hidden="true" className="text-dark-20">|</span>
+            <a href={CONTACT.phoneHref} className={`${linkCls} text-xs`}>
+              {CONTACT.phone}
+            </a>
           </div>
           <p className="text-xs text-grey-40">
             © {new Date().getFullYear()} {site?.photographerName ?? "Bấu Chụp Choẹt"}

@@ -16,7 +16,7 @@ const arrowBtn =
 export function PortfolioPreviewSection({ photos }: { photos: Photo[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const scroll = (dir: number) =>
-    trackRef.current?.scrollBy({ left: dir * 340, behavior: "smooth" });
+    trackRef.current?.scrollBy({ left: dir * trackRef.current.clientWidth, behavior: "smooth" });
 
   return (
     <section aria-label="Portfolio preview" className="border-b border-dark-12">
@@ -47,42 +47,28 @@ export function PortfolioPreviewSection({ photos }: { photos: Photo[] }) {
           </div>
         </div>
 
-        {/* Scrolling cards */}
+        {/* Scrolling cards — card width always divides the viewport into an
+            integer number of fully-visible columns (2/3/4), so the last
+            visible card is never clipped mid-image. Extra photos scroll. */}
         <div
           ref={trackRef}
           className="mt-10 flex snap-x gap-6 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {photos.map((p) => (
-            <article key={p.id} className="w-[280px] shrink-0 snap-start sm:w-[320px]">
-              <Link
-                href={`/gallery/${p.id}`}
-                className="group relative block aspect-[4/5] overflow-hidden rounded-[14px] bg-dark-08"
-              >
-                <Image
-                  src={p.imageUrl}
-                  alt={p.altText ?? p.title ?? "Ảnh"}
-                  fill
-                  sizes="320px"
-                  className="object-cover transition-transform duration-300 group-hover:scale-105"
-                />
-              </Link>
-              <div className="mt-4 flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold text-base font-semibold text-absolutewhite">
-                    {p.title ?? "Không tiêu đề"}
-                  </h3>
-                  <p className="mt-0.5 text-xs text-grey-40">
-                    {p.categories[0]?.name}
-                  </p>
-                </div>
-                <Link
-                  href={`/gallery/${p.id}`}
-                  className="shrink-0 font-medium text-xs font-medium uppercase tracking-[0.12em] text-grey-70 transition-colors hover:text-purple-55"
-                >
-                  Xem ảnh ↗
-                </Link>
-              </div>
-            </article>
+            <Link
+              key={p.id}
+              href={`/gallery/${p.id}`}
+              aria-label={p.altText ?? p.title ?? "Xem ảnh"}
+              className="group relative block aspect-[4/5] w-[calc(50%-12px)] shrink-0 snap-start overflow-hidden rounded-[14px] bg-dark-08 sm:w-[calc(33.333%-16px)] lg:w-[calc(25%-18px)]"
+            >
+              <Image
+                src={p.imageUrl}
+                alt={p.altText ?? p.title ?? "Ảnh"}
+                fill
+                sizes="(min-width: 1400px) 312px, (min-width: 1024px) calc(25vw - 38px), (min-width: 640px) calc(33.33vw - 43px), calc(50vw - 32px)"
+                className="object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            </Link>
           ))}
         </div>
       </div>

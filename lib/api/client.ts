@@ -33,6 +33,11 @@ interface ApiFetchOptions {
   formData?: FormData;
   /** JWT for admin endpoints. */
   token?: string;
+  /**
+   * Abort the request after this many ms. Defaults: 15s for regular
+   * requests, 5min for multipart uploads (large RAW/JPEG batches).
+   */
+  timeoutMs?: number;
 }
 
 /**
@@ -41,7 +46,7 @@ interface ApiFetchOptions {
  * data must always be fresh.
  */
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
-  const { method = "GET", body, formData, token } = options;
+  const { method = "GET", body, formData, token, timeoutMs } = options;
 
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -52,6 +57,9 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     headers,
     body: formData ?? (body !== undefined ? JSON.stringify(body) : undefined),
     cache: "no-store",
+    // Without a timeout a hung-but-accepting backend blocks forever: public
+    // pages never render, admin pages spin forever.
+    signal: AbortSignal.timeout(timeoutMs ?? (formData ? 300_000 : 15_000)),
   });
 
   if (!response.ok) {
@@ -81,6 +89,9 @@ export function describeApiError(err: unknown): string {
     };
     const label = statusText[err.status] ?? `HTTP ${err.status}`;
     return `${label}: ${err.message}`;
+  }
+  if (err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError")) {
+    return "Máy chủ phản hồi quá chậm — vui lòng thử lại.";
   }
   if (err instanceof TypeError) return "Không thể kết nối tới máy chủ.";
   return err instanceof Error ? err.message : "Lỗi không xác định.";

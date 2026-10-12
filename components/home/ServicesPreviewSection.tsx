@@ -82,7 +82,7 @@ export function ServicesPreviewSection({ categories, photos }: { categories: Cat
                   src={photo.imageUrl}
                   alt={photo.altText ?? photo.title ?? category.name}
                   fill
-                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  sizes="(min-width: 1400px) 660px, (min-width: 1024px) calc(50vw - 40px), calc(100vw - 40px)"
                   className="object-cover transition-transform duration-500 group-hover:scale-105"
                 />
               </div>

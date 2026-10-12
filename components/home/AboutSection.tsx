@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { CONTACT, FacebookIcon, InstagramIcon, MailIcon, MessengerIcon, PhoneIcon } from "@/components/shared/contact";
 import type { Photo } from "@/types/photo";
 import type { SiteSettings } from "@/types/site";
 
@@ -16,10 +17,11 @@ const socialBtn =
 export function AboutSection({ photos, site }: { photos: Photo[]; site: SiteSettings | null }) {
   const portrait = photos[0];
   const name = site?.photographerName ?? "Bấu Chụp Choẹt";
+  // Same contact channels as the site footer (shared source: lib contact.tsx).
   const socials = [
-    { label: "Facebook", url: site?.facebookUrl },
-    { label: "Instagram", url: site?.instagramUrl },
-    { label: "Messenger", url: site?.messengerUrl },
+    { label: "Facebook", url: CONTACT.facebook, Icon: FacebookIcon },
+    { label: "Instagram", url: CONTACT.instagram, Icon: InstagramIcon },
+    { label: "Messenger", url: site?.messengerUrl, Icon: MessengerIcon },
   ].filter((s) => s.url);
 
   return (
@@ -55,7 +57,7 @@ export function AboutSection({ photos, site }: { photos: Photo[]; site: SiteSett
                   src={site?.profileImageUrl ?? portrait.imageUrl}
                   alt={site?.profileImageUrl ? `Chân dung ${name}` : (portrait.altText ?? portrait.title ?? "Ảnh")}
                   fill
-                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  sizes="(min-width: 1400px) 660px, (min-width: 1024px) calc(50vw - 40px), calc(100vw - 40px)"
                   className="object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               </div>
@@ -83,18 +85,26 @@ export function AboutSection({ photos, site }: { photos: Photo[]; site: SiteSett
               <h3 className={cardTitle}>
                 <span aria-hidden="true" className="text-purple-55">✦</span> Thông tin liên hệ
               </h3>
-              <div className="mt-6 flex flex-wrap items-center gap-3">
+              <div className="mt-6 space-y-3">
+                <a
+                  href={CONTACT.mailto}
+                  className="flex items-center gap-3 text-sm text-grey-70 transition-colors hover:text-absolutewhite"
+                >
+                  <span className={socialBtn}><MailIcon /></span>
+                  {CONTACT.email}
+                </a>
+                <a
+                  href={CONTACT.phoneHref}
+                  className="flex items-center gap-3 text-sm text-grey-70 transition-colors hover:text-absolutewhite"
+                >
+                  <span className={socialBtn}><PhoneIcon /></span>
+                  {CONTACT.phone}
+                </a>
+              </div>
+              <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-dark-12 pt-6">
                 {socials.map((s) => (
                   <a key={s.label} href={s.url!} target="_blank" rel="noreferrer" aria-label={s.label} className={socialBtn}>
-                    {s.label === "Facebook" && (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 21v-7h2.4l.4-3h-2.8V9.1c0-.9.3-1.5 1.6-1.5h1.3V5.1c-.6-.1-1.4-.2-2.2-.2-2.2 0-3.7 1.3-3.7 3.8V11H8v3h2.5v7h3z"/></svg>
-                    )}
-                    {s.label === "Instagram" && (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none"/></svg>
-                    )}
-                    {s.label === "Messenger" && (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C6.9 3 3 6.6 3 11.1c0 2.6 1.2 4.9 3.2 6.4V21l2.9-1.6c.9.3 1.9.4 2.9.4 5.1 0 9-3.6 9-8.1S17.1 3 12 3zm1 10.9-2.4-2.6-4.3 2.6 4.7-5 2.4 2.6 4.3-2.6-4.7 5z"/></svg>
-                    )}
+                    <s.Icon size={16} />
                   </a>
                 ))}
                 <Link

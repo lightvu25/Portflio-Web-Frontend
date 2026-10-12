@@ -15,6 +15,10 @@ export interface PricingPackage {
   description: string | null;
   sortOrder: number;
   isActive: boolean;
+  /** Explicit cover image — references a Photo row (null = none). */
+  coverPhotoId: number | null;
+  /** Resolved from the referenced Photo; never stored on the package. */
+  coverImageUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -28,4 +32,5 @@ export interface PricingPackageRequest {
   description?: string;
   sortOrder?: number;
   isActive?: boolean;
+  coverPhotoId?: number | null;
 }

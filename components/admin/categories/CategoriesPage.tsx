@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createCategory, deleteCategory, getAdminCategories, updateCategory } from "@/lib/api/categories";
 import { useAdmin } from "@/lib/auth/useAdmin";
-import type { Category } from "@/types/category";
+import type { Category, CategoryType } from "@/types/category";
 import { Btn, Card, EmptyState, inputCls, labelCls, Modal, Spinner } from "@/components/admin/ui";
 
 /** Categories admin — list + create/edit/delete via /api/admin/categories. */
@@ -17,6 +17,7 @@ export function AdminCategoriesPage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [sortOrder, setSortOrder] = useState(0);
+  const [type, setType] = useState<CategoryType>("PORTFOLIO");
   const [saving, setSaving] = useState(false);
 
   const load = async (t: string) => {
@@ -41,6 +42,7 @@ export function AdminCategoriesPage() {
     setName("");
     setSlug("");
     setSortOrder(items.length + 1);
+    setType("PORTFOLIO");
     setModalOpen(true);
   };
 
@@ -49,6 +51,7 @@ export function AdminCategoriesPage() {
     setName(c.name);
     setSlug(c.slug);
     setSortOrder(c.sortOrder);
+    setType(c.type);
     setModalOpen(true);
   };
 
@@ -56,7 +59,7 @@ export function AdminCategoriesPage() {
     if (!token || !name.trim()) return;
     setSaving(true);
     try {
-      const body = { name: name.trim(), slug: slug.trim() || undefined, sortOrder };
+      const body = { name: name.trim(), slug: slug.trim() || undefined, sortOrder, type };
       if (editing) await updateCategory(token, editing.id, body);
       else await createCategory(token, body);
       setModalOpen(false);
@@ -97,6 +100,7 @@ export function AdminCategoriesPage() {
             <thead>
               <tr className="border-b border-gray-100 text-left text-xs uppercase tracking-wide text-gray-400">
                 <th className="pb-3 pr-4 font-medium">Tên</th>
+                <th className="pb-3 pr-4 font-medium">Loại</th>
                 <th className="pb-3 pr-4 font-medium">Slug</th>
                 <th className="pb-3 pr-4 font-medium">Thứ tự</th>
                 <th className="pb-3 font-medium">Thao tác</th>
@@ -106,6 +110,11 @@ export function AdminCategoriesPage() {
               {[...items].sort((a, b) => a.sortOrder - b.sortOrder).map((c) => (
                 <tr key={c.id} className="border-b border-gray-50 last:border-0">
                   <td className="py-3 pr-4 font-medium text-gray-800">{c.name}</td>
+                  <td className="py-3 pr-4">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${c.type === "PACKAGE" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                      {c.type === "PACKAGE" ? "Gói dịch vụ" : "Portfolio"}
+                    </span>
+                  </td>
                   <td className="py-3 pr-4 text-gray-500">{c.slug}</td>
                   <td className="py-3 pr-4 text-gray-500">{c.sortOrder}</td>
                   <td className="py-3">
@@ -134,6 +143,13 @@ export function AdminCategoriesPage() {
           <div>
             <label className={labelCls}>Thứ tự hiển thị</label>
             <input type="number" className={inputCls} value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} />
+          </div>
+          <div>
+            <label className={labelCls}>Loại danh mục</label>
+            <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as CategoryType)}>
+              <option value="PORTFOLIO">Portfolio (hiển thị công khai)</option>
+              <option value="PACKAGE">Gói dịch vụ (ảnh gói — không hiện gallery)</option>
+            </select>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Btn variant="ghost" onClick={() => setModalOpen(false)}>Hủy</Btn>

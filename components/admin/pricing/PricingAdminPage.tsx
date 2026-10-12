@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { createPricingPackage, deletePricingPackage, getAdminPricing, updatePricingPackage } from "@/lib/api/pricing";
+import { getAdminCategories } from "@/lib/api/categories";
+import { getAdminPhotos } from "@/lib/api/photos";
 import { ApiError } from "@/lib/api/client";
 import { useAdmin } from "@/lib/auth/useAdmin";
 import { formatVnd, sessionTypeLabel } from "@/lib/labels";
 import type { SessionType } from "@/types/booking";
+import type { Category } from "@/types/category";
+import type { Photo } from "@/types/photo";
 import type { PricingPackage, PricingPackageRequest } from "@/types/pricing";
 import { Badge, Btn, Card, inputCls, labelCls, Modal, Spinner } from "@/components/admin/ui";
 
@@ -21,6 +25,13 @@ export function AdminPricingPage() {
     name: "", groupSize: 1, sessionType: "HALF_DAY", price: 0, sortOrder: 0, isActive: true,
   });
   const [saving, setSaving] = useState(false);
+  /** Photo library for the cover picker — loaded lazily on first open. */
+  const [photos, setPhotos] = useState<Photo[] | null>(null);
+  const [pickerCats, setPickerCats] = useState<Category[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerCatId, setPickerCatId] = useState<number | null>(null);
+  /** Preview of the selected cover so it shows even before photos load. */
+  const [coverPreview, setCoverPreview] = useState<{ id: number; url: string } | null>(null);
 
   const load = async (t: string) => {
     setLoading(true);
@@ -41,7 +52,8 @@ export function AdminPricingPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: "", groupSize: 1, sessionType: "HALF_DAY", price: 0, description: "", sortOrder: items.length + 1, isActive: true });
+    setForm({ name: "", groupSize: 1, sessionType: "HALF_DAY", price: 0, description: "", sortOrder: items.length + 1, isActive: true, coverPhotoId: null });
+    setCoverPreview(null);
     setModalOpen(true);
   };
 
@@ -55,9 +67,36 @@ export function AdminPricingPage() {
       description: p.description ?? "",
       sortOrder: p.sortOrder,
       isActive: p.isActive,
+      coverPhotoId: p.coverPhotoId,
     });
+    setCoverPreview(p.coverPhotoId != null && p.coverImageUrl ? { id: p.coverPhotoId, url: p.coverImageUrl } : null);
     setModalOpen(true);
   };
+
+  const openPicker = async () => {
+    setPickerOpen(true);
+    setPickerCatId(null);
+    if (photos || !token) return;
+    try {
+      const [p, c] = await Promise.all([getAdminPhotos(token), getAdminCategories(token)]);
+      setPhotos(p);
+      setPickerCats(c);
+    } catch (err) {
+      if (!onApiError(err)) alert("Không tải được thư viện ảnh.");
+      setPickerOpen(false);
+    }
+  };
+
+  const pickCover = (p: Photo) => {
+    set("coverPhotoId", p.id);
+    setCoverPreview({ id: p.id, url: p.thumbnailUrl ?? p.imageUrl });
+    setPickerOpen(false);
+  };
+
+  // Package categories first — they're the intended cover library.
+  const pickerPhotos = (photos ?? []).filter(
+    (p) => pickerCatId == null || p.categories.some((c) => c.id === pickerCatId),
+  );
 
   const save = async () => {
     if (!token || !form.name.trim()) return;
@@ -106,7 +145,15 @@ export function AdminPricingPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {[...items].sort((a, b) => a.sortOrder - b.sortOrder).map((p) => (
             <article key={p.id} className="rounded-xl border border-gray-200 p-5">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                {p.coverImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- Cloudinary URL
+                  <img src={p.coverImageUrl} alt={p.name} className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                ) : (
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-[10px] text-gray-400">
+                    Chưa có ảnh
+                  </div>
+                )}
                 <div>
                   <p className="text-base font-bold text-gray-900">{p.name}</p>
                   <p className="mt-0.5 text-xs text-gray-400">
@@ -161,6 +208,31 @@ export function AdminPricingPage() {
             <label className={labelCls}>Mô tả</label>
             <textarea className={inputCls} rows={2} value={form.description ?? ""} onChange={(e) => set("description", e.target.value)} />
           </div>
+          <div>
+            <label className={labelCls}>Ảnh gói dịch vụ</label>
+            <div className="flex items-center gap-3">
+              {coverPreview && form.coverPhotoId != null ? (
+                // eslint-disable-next-line @next/next/no-img-element -- Cloudinary URL
+                <img src={coverPreview.url} alt="Ảnh gói" className="h-16 w-16 rounded-lg object-cover" />
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-gray-300 text-[10px] text-gray-400">
+                  Chưa chọn
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={openPicker}>Chọn ảnh</Btn>
+                {form.coverPhotoId != null && (
+                  <button
+                    type="button"
+                    className="text-left text-xs text-red-500 hover:text-red-600"
+                    onClick={() => { set("coverPhotoId", null); setCoverPreview(null); }}
+                  >
+                    Bỏ ảnh
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           <label className="flex items-center gap-2 text-sm text-gray-700">
             <input type="checkbox" checked={form.isActive ?? true} onChange={(e) => set("isActive", e.target.checked)} className="h-4 w-4 accent-green-600" />
             Đang bán (hiển thị công khai)
@@ -170,6 +242,54 @@ export function AdminPricingPage() {
             <Btn onClick={save} disabled={saving || !form.name.trim()}>{saving ? "Đang lưu…" : "Lưu"}</Btn>
           </div>
         </div>
+      </Modal>
+
+      {/* Cover photo picker — existing photo library, package categories first */}
+      <Modal open={pickerOpen} onClose={() => setPickerOpen(false)} title="Chọn ảnh gói dịch vụ">
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setPickerCatId(null)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${pickerCatId == null ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+          >
+            Tất cả
+          </button>
+          {[...pickerCats].sort((a, b) => Number(b.type === "PACKAGE") - Number(a.type === "PACKAGE")).map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setPickerCatId(c.id)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${pickerCatId === c.id ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            >
+              {c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name}
+            </button>
+          ))}
+        </div>
+        {photos == null ? (
+          <div className="flex justify-center py-10"><Spinner /></div>
+        ) : pickerPhotos.length === 0 ? (
+          <p className="py-8 text-center text-sm text-gray-500">Không có ảnh nào trong danh mục này.</p>
+        ) : (
+          <div className="grid max-h-[60vh] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
+            {pickerPhotos.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => pickCover(p)}
+                className={`relative aspect-square overflow-hidden rounded-lg border-2 transition ${
+                  form.coverPhotoId === p.id ? "border-green-500" : "border-transparent hover:border-gray-300"
+                }`}
+                title={p.title ?? `#${p.id}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary thumbnail URL */}
+                <img src={p.thumbnailUrl ?? p.imageUrl} alt={p.altText ?? p.title ?? "Ảnh"} className="h-full w-full object-cover" />
+                {p.status === "DRAFT" && (
+                  <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">Nháp</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </Modal>
     </Card>
   );

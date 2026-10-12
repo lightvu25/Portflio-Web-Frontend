@@ -64,23 +64,18 @@ export function GalleryGrid({
           <Link
             key={p.id}
             href={`/gallery/${p.id}`}
+            aria-label={p.altText ?? p.title ?? "Xem ảnh"}
             className="group relative mb-4 block break-inside-avoid overflow-hidden rounded-[14px] border border-dark-12 bg-dark-08"
           >
             <div className={`relative w-full ${ratios[i % ratios.length]}`}>
               <Image
-                src={p.thumbnailUrl ?? p.imageUrl}
+                src={p.imageUrl}
                 alt={p.altText ?? p.title ?? "Ảnh"}
                 fill
-                sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
+                sizes="(min-width: 1400px) 318px, (min-width: 1280px) calc(25vw - 32px), (min-width: 768px) calc(33.33vw - 37px), calc(50vw - 28px)"
                 className="object-cover transition-transform duration-300 group-hover:scale-105"
               />
             </div>
-            <span className="absolute inset-x-0 bottom-0 flex items-baseline justify-between bg-gradient-to-t from-black/75 to-transparent p-4 opacity-0 transition-opacity group-hover:opacity-100">
-              <span className="font-medium text-sm font-medium text-white">{p.title}</span>
-              <span className="text-xs uppercase tracking-wider text-white/60">
-                {p.categories[0]?.name}
-              </span>
-            </span>
           </Link>
         ))}
       </div>
