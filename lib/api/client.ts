@@ -1,11 +1,12 @@
 /**
  * Centralized API client for the Spring Boot backend.
- * Base URL comes from NEXT_PUBLIC_API_URL — never hardcode it elsewhere.
+ * Base URL comes from NEXT_API_URL (inlined via next.config.ts `env`
+ * so it also reaches the browser bundle) — never hardcode it elsewhere.
  */
 
 import type { ApiErrorResponse } from "@/types/error";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const BASE_URL = process.env.NEXT_API_URL ?? "http://localhost:8080";
 
 /** Error thrown for every non-2xx backend response. */
 export class ApiError extends Error {
