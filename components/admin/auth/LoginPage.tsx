@@ -39,7 +39,7 @@ export function AdminLoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-[#f4f7fe] px-4">
       <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-8 shadow-[0_8px_30px_rgba(17,24,39,0.06)]">
         <p className="text-center text-xl font-bold tracking-wide text-gray-900">
-          HẢI BẤU <span className="font-light text-gray-400">ADMIN</span>
+          BẤU CHỤP CHOÉT <span className="font-light text-gray-400">ADMIN</span>
         </p>
         <p className="mt-1 text-center text-sm text-gray-500">Đăng nhập để quản trị website</p>
 

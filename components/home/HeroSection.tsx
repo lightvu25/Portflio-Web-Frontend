@@ -8,8 +8,6 @@ function RingsWidget() {
       {[100, 78, 56, 34].map((r) => (
         <circle key={r} cx="110" cy="110" r={r} stroke="#22C55E" strokeOpacity={0.35 - r / 400} strokeWidth="1" />
       ))}
-      <circle cx="110" cy="110" r="5" fill="#22C55E" />
-      <path d="M110 96v28M96 110h28" stroke="#22C55E" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
