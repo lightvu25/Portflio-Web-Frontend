@@ -1,7 +1,8 @@
 "use client";
 
+import Script from "next/script";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Reveal } from "@/components/shared/Reveal";
 import { getAvailability } from "@/lib/api/availability";
 import { createBooking } from "@/lib/api/bookings";
@@ -10,6 +11,17 @@ import type { AvailabilityResponse } from "@/types/availability";
 import type { PricingPackage } from "@/types/pricing";
 import type { Slot } from "@/types/booking";
 
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (el: HTMLElement, options: Record<string, unknown>) => string;
+      reset: (widgetId?: string) => void;
+    };
+  }
+}
+
 const input =
   "w-full rounded-[10px] bg-dark-08 px-4 py-3 text-sm text-absolutewhite placeholder:text-grey-40 focus:outline-none focus:ring-2 focus:ring-purple-55/50";
 const label =
@@ -17,8 +29,9 @@ const label =
 
 /**
  * Booking page — real submission via POST /api/bookings.
- * Turnstile token: when no site key is configured locally, a placeholder is
- * sent (backend skips verification when TURNSTILE_ENABLED=false).
+ * Turnstile: renders the Cloudflare widget when NEXT_PUBLIC_TURNSTILE_SITE_KEY
+ * is set (production); without a key a placeholder token is sent for local dev
+ * where the backend runs TURNSTILE_ENABLED=false.
  */
 function BookingForm({ packages }: { packages: PricingPackage[] }) {
   const params = useSearchParams();
@@ -37,6 +50,26 @@ function BookingForm({ packages }: { packages: PricingPackage[] }) {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [bookingCode, setBookingCode] = useState("");
+  const [tsToken, setTsToken] = useState("");
+  const turnstileRef = useRef<HTMLDivElement>(null);
+  const turnstileId = useRef<string | null>(null);
+
+  const renderTurnstile = () => {
+    if (!TURNSTILE_SITE_KEY || !turnstileRef.current || !window.turnstile) return;
+    if (turnstileId.current !== null) return;
+    turnstileId.current = window.turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      callback: (token: string) => setTsToken(token),
+      "expired-callback": () => setTsToken(""),
+      "error-callback": () => setTsToken(""),
+      theme: "dark",
+    });
+  };
+
+  const resetTurnstile = () => {
+    if (turnstileId.current !== null) window.turnstile?.reset(turnstileId.current);
+    setTsToken("");
+  };
 
   const selected = packages.find((p) => p.id === pkgId);
   const isFullDay = selected?.sessionType === "FULL_DAY";
@@ -73,6 +106,11 @@ function BookingForm({ packages }: { packages: PricingPackage[] }) {
       setState("error");
       return;
     }
+    if (TURNSTILE_SITE_KEY && !tsToken) {
+      setErrorMsg("Vui lòng hoàn thành xác nhận captcha.");
+      setState("error");
+      return;
+    }
     setState("sending");
     try {
       const booking = await createBooking({
@@ -83,13 +121,14 @@ function BookingForm({ packages }: { packages: PricingPackage[] }) {
         bookingDate: date,
         slot: isFullDay ? undefined : slot,
         address: address.trim(),
-        turnstileToken: "local-dev",
+        turnstileToken: TURNSTILE_SITE_KEY ? tsToken : "local-dev",
       });
       setBookingCode(booking.bookingCode);
       setState("sent");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Đặt lịch thất bại — vui lòng thử lại.");
       setState("error");
+      resetTurnstile();
     }
   };
 
@@ -222,6 +261,17 @@ function BookingForm({ packages }: { packages: PricingPackage[] }) {
                 <input id="customer-instagram" type="text" value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="@tenban" className={input} />
               </div>
             </div>
+
+            {TURNSTILE_SITE_KEY && (
+              <>
+                <Script
+                  src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+                  strategy="afterInteractive"
+                  onLoad={renderTurnstile}
+                />
+                <div ref={turnstileRef} />
+              </>
+            )}
 
             {state === "error" && (
               <p className="rounded-[10px] bg-red-900/30 px-4 py-3 text-sm text-red-300">
