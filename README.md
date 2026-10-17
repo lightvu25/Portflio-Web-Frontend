@@ -92,7 +92,7 @@ Define the backend service endpoint:
 
 ```env
 # .env.example
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+NEXT_API_URL=http://localhost:8080
 ```
 
 ### Step 4: Run the Development Server

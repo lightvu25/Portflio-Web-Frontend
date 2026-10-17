@@ -10,5 +10,5 @@ export default async function Page({
 }) {
   const { category } = await searchParams;
   const [photos, categories] = await Promise.all([fetchPhotos(), fetchCategories()]);
-  return <GalleryPage photos={photos} categories={categories} initialCategory={category} />;
+  return <GalleryPage photos={photos.data} loadError={!photos.ok} categories={categories} initialCategory={category} />;
 }

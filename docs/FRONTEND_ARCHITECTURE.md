@@ -46,7 +46,8 @@ stay per-domain.
 
 ## API layer — `lib/api/`
 
-`client.ts` is the single fetch wrapper (`NEXT_PUBLIC_API_URL`,
+`client.ts` is the single fetch wrapper (`NEXT_API_URL`, inlined at build
+time via `next.config.ts` `env` — changing it on Vercel requires a redeploy),
 `ApiError`, JSON/FormData, Bearer token). Feature modules map 1:1 to
 backend controllers: `auth`, `photos`, `categories`, `pricing`,
 `availability`, `bookings` (incl. blocked slots), `payments`,

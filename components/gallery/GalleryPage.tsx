@@ -1,14 +1,17 @@
 import { Reveal } from "@/components/shared/Reveal";
+import { DataFetchError } from "@/components/shared/DataFetchError";
 import { GalleryGrid } from "@/components/gallery/GalleryGrid";
 import type { Category } from "@/types/category";
 import type { Photo } from "@/types/photo";
 
 export function GalleryPage({
   photos,
+  loadError = false,
   categories,
   initialCategory,
 }: {
   photos: Photo[];
+  loadError?: boolean;
   categories: Category[];
   initialCategory?: string;
 }) {
@@ -30,7 +33,11 @@ export function GalleryPage({
       <section className="flex-1">
         <div className="mx-auto max-w-[1400px] px-5 py-10 md:px-10 md:py-14">
           <Reveal>
-            <GalleryGrid photos={photos} categories={categories} initialCategory={initialCategory} />
+            {loadError ? (
+              <DataFetchError />
+            ) : (
+              <GalleryGrid photos={photos} categories={categories} initialCategory={initialCategory} />
+            )}
           </Reveal>
         </div>
       </section>
