@@ -29,7 +29,15 @@ export function getAdminPhotos(token: string): Promise<Photo[]> {
 export function uploadPhoto(
   token: string,
   file: File,
-  metadata: { title?: string; description?: string; altText?: string; sortOrder?: number; categoryIds?: number[] } = {},
+  metadata: {
+    title?: string;
+    description?: string;
+    altText?: string;
+    sortOrder?: number;
+    categoryIds?: number[];
+    /** Optional crop (0..1 fractions of the stored image). */
+    crop?: { cropX: number; cropY: number; cropW: number; cropH: number };
+  } = {},
 ): Promise<Photo> {
   const formData = new FormData();
   formData.append("file", file);
@@ -38,8 +46,22 @@ export function uploadPhoto(
   if (metadata.altText !== undefined) formData.append("altText", metadata.altText);
   if (metadata.sortOrder !== undefined) formData.append("sortOrder", String(metadata.sortOrder));
   for (const id of metadata.categoryIds ?? []) formData.append("categoryIds", String(id));
+  if (metadata.crop) {
+    formData.append("cropX", String(metadata.crop.cropX));
+    formData.append("cropY", String(metadata.crop.cropY));
+    formData.append("cropW", String(metadata.crop.cropW));
+    formData.append("cropH", String(metadata.crop.cropH));
+  }
 
   return apiFetch<Photo>("/api/admin/photos", { method: "POST", formData, token });
+}
+
+/** Atomic bulk add/remove of categories across the selected photos. */
+export function bulkUpdatePhotoCategories(
+  token: string,
+  request: { photoIds: number[]; addCategoryIds?: number[]; removeCategoryIds?: number[] },
+): Promise<Photo[]> {
+  return apiFetch<Photo[]>("/api/admin/photos/bulk-categories", { method: "PUT", body: request, token });
 }
 
 export function updatePhoto(token: string, id: number, request: PhotoUpdateRequest): Promise<Photo> {

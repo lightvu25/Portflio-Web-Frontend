@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CONTACT, FacebookIcon, InstagramIcon, MailIcon, MessengerIcon, PhoneIcon } from "@/components/shared/contact";
-import type { Photo } from "@/types/photo";
 import type { SiteSettings } from "@/types/site";
 
 const cardTitle =
@@ -14,8 +13,11 @@ const socialBtn =
  * About — matches the reference: eyebrow + big title + "Know More" CTA on top,
  * portrait image left, Introduction and Contact Information cards right.
  */
-export function AboutSection({ photos, site }: { photos: Photo[]; site: SiteSettings | null }) {
-  const portrait = photos[0];
+export function AboutSection({ site }: { site: SiteSettings | null }) {
+  // The self-introduction image is reserved to the backend's "Admin" category —
+  // never a public-gallery photo. `aboutPhoto` is resolved server-side and is
+  // null when no eligible photo exists.
+  const portrait = site?.aboutPhoto ?? null;
   const name = site?.photographerName ?? "Bấu Chụp Choẹt";
   // Same contact channels as the site footer (shared source: lib contact.tsx).
   const socials = [
@@ -46,22 +48,26 @@ export function AboutSection({ photos, site }: { photos: Photo[]; site: SiteSett
         </div>
 
         <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Portrait */}
-          {portrait && (
-            <Link
-              href={`/gallery/${portrait.id}`}
-              className="group relative block overflow-hidden rounded-[14px] bg-dark-08"
-            >
+          {/* Portrait — Admin-category photo only; no link, since Admin photos
+              are not part of the public gallery/detail routes. */}
+          {portrait ? (
+            <div className="relative overflow-hidden rounded-[14px] bg-dark-08">
               <div className="relative aspect-[4/5] lg:aspect-auto lg:h-full lg:min-h-[480px]">
                 <Image
-                  src={site?.profileImageUrl ?? portrait.imageUrl}
-                  alt={site?.profileImageUrl ? `Chân dung ${name}` : (portrait.altText ?? portrait.title ?? "Ảnh")}
+                  src={portrait.imageUrl}
+                  alt={portrait.altText ?? portrait.title ?? `Chân dung ${name}`}
                   fill
                   sizes="(min-width: 1400px) 660px, (min-width: 1024px) calc(50vw - 40px), calc(100vw - 40px)"
-                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  className="object-cover"
                 />
               </div>
-            </Link>
+            </div>
+          ) : (
+            <div className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[14px] bg-dark-08 lg:aspect-auto lg:h-full lg:min-h-[480px]">
+              <p className="px-6 text-center text-sm text-grey-40">
+                Ảnh giới thiệu sắp được cập nhật.
+              </p>
+            </div>
           )}
 
           {/* Info cards */}

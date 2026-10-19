@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { getAdminSiteSettings, updateSiteSettings } from "@/lib/api/site";
+import { getAdminPhotos } from "@/lib/api/photos";
 import { useAdmin } from "@/lib/auth/useAdmin";
+import { isAdminCategory } from "@/lib/labels";
+import type { Photo } from "@/types/photo";
 import type { SiteSettings, SiteSettingsRequest } from "@/types/site";
 import { Btn, Card, inputCls, labelCls, Spinner } from "@/components/admin/ui";
 
@@ -10,12 +13,14 @@ import { Btn, Card, inputCls, labelCls, Spinner } from "@/components/admin/ui";
 export function AdminSettingsPage() {
   const { token, ready, onApiError } = useAdmin();
   const [form, setForm] = useState<SiteSettingsRequest | null>(null);
+  const [adminPhotos, setAdminPhotos] = useState<Photo[]>([]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready || !token) return;
+    getAdminPhotos(token).then(setAdminPhotos).catch(() => {});
     getAdminSiteSettings(token)
       .then((s: SiteSettings) =>
         setForm({
@@ -26,7 +31,7 @@ export function AdminSettingsPage() {
           instagramUrl: s.instagramUrl ?? "",
           messengerUrl: s.messengerUrl ?? "",
           heroImageUrl: s.heroImageUrl ?? "",
-          profileImageUrl: s.profileImageUrl ?? "",
+          profilePhotoId: s.profilePhoto?.id ?? null,
           depositAmount: s.depositAmount,
           equipment: s.equipment ?? "",
         }),
@@ -59,7 +64,7 @@ export function AdminSettingsPage() {
       <div className="flex justify-center py-20"><Spinner /></div>
     );
 
-  const set = (k: keyof SiteSettingsRequest, v: string | number) => setForm({ ...form, [k]: v });
+  const set = (k: keyof SiteSettingsRequest, v: string | number | null) => setForm({ ...form, [k]: v });
 
   return (
     <Card>
@@ -102,9 +107,44 @@ export function AdminSettingsPage() {
           <label className={labelCls}>Ảnh hero URL</label>
           <input className={inputCls} value={form.heroImageUrl ?? ""} onChange={(e) => set("heroImageUrl", e.target.value)} />
         </div>
-        <div>
-          <label className={labelCls}>Ảnh chân dung URL</label>
-          <input className={inputCls} value={form.profileImageUrl ?? ""} onChange={(e) => set("profileImageUrl", e.target.value)} />
+        <div className="md:col-span-2">
+          <label className={labelCls}>Ảnh giới thiệu (mục &ldquo;Tôi là&rdquo; trên trang chủ)</label>
+          <p className="mb-2 text-xs text-gray-400">
+            Chỉ chọn được ảnh thuộc danh mục Admin. Để trống = tự động lấy ảnh Admin đầu tiên đã đăng.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => set("profilePhotoId", null)}
+              className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                form.profilePhotoId == null ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              Tự động
+            </button>
+            {adminPhotos.filter((p) => p.categories.some(isAdminCategory)).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => set("profilePhotoId", p.id)}
+                className={`relative h-20 w-20 overflow-hidden rounded-lg border-2 transition ${
+                  form.profilePhotoId === p.id ? "border-green-500" : "border-transparent hover:border-gray-300"
+                }`}
+                title={p.title ?? `#${p.id}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary thumbnail URL */}
+                <img src={p.thumbnailUrl ?? p.imageUrl} alt={p.altText ?? p.title ?? "Ảnh"} className="h-full w-full object-cover" />
+                {p.status === "DRAFT" && (
+                  <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-center text-[10px] text-white">Nháp</span>
+                )}
+              </button>
+            ))}
+            {adminPhotos.length > 0 && !adminPhotos.some((p) => p.categories.some(isAdminCategory)) && (
+              <p className="text-xs text-gray-400">
+                Chưa có ảnh nào trong danh mục Admin — gán danh mục Admin cho ảnh trong mục Thư viện ảnh.
+              </p>
+            )}
+          </div>
         </div>
       </div>
       <div className="mt-6 flex justify-end">

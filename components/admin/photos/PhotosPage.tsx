@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getAdminCategories } from "@/lib/api/categories";
-import { describeApiError } from "@/lib/api/client";
-import { deletePhoto, getAdminPhotos, publishPhoto, reorderPhotos, unpublishPhoto, updatePhoto, uploadPhoto } from "@/lib/api/photos";
+import { ApiError, describeApiError } from "@/lib/api/client";
+import { bulkUpdatePhotoCategories, deletePhoto, getAdminPhotos, publishPhoto, reorderPhotos, unpublishPhoto, updatePhoto, uploadPhoto } from "@/lib/api/photos";
 import { useAdmin } from "@/lib/auth/useAdmin";
-import { formatDate } from "@/lib/labels";
+import { categoryLabel, formatDate, isAdminCategory } from "@/lib/labels";
 import type { Category } from "@/types/category";
 import type { Photo } from "@/types/photo";
+import { CropEditor, type CropFraction } from "@/components/admin/photos/CropEditor";
 import { Badge, Btn, Card, EmptyState, inputCls, labelCls, Modal, Spinner } from "@/components/admin/ui";
 
 type UploadState = "pending" | "uploading" | "done" | "error";
@@ -20,6 +21,8 @@ interface PendingFile {
   title: string;
   sortOrder: number;
   categoryIds: number[];
+  /** Optional crop (0..1 fractions) applied by the backend after upload. */
+  crop: CropFraction | null;
   state: UploadState;
   error?: string;
 }
@@ -79,6 +82,13 @@ export function AdminPhotosPage() {
   const [orderError, setOrderError] = useState<string | null>(null);
   /** Category id filter for the grid (reorder is global — disabled while filtered). */
   const [catFilter, setCatFilter] = useState<number | null>(null);
+  /** Multi-select for bulk category editing. */
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  /** Pending-file key whose crop editor is open. */
+  const [cropKey, setCropKey] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   // Mirror of `pending` for unmount cleanup.
@@ -124,6 +134,7 @@ export function AdminPhotosPage() {
       title: file.name.replace(/\.[^.]+$/, ""),
       sortOrder: photos.length + pending.length + i + 1,
       categoryIds: [],
+      crop: null,
       state: file.type.startsWith("image/") ? "pending" : "error",
       error: file.type.startsWith("image/") ? undefined : "Định dạng không được hỗ trợ — chỉ nhận JPEG/PNG/WebP/AVIF.",
     }));
@@ -145,12 +156,24 @@ export function AdminPhotosPage() {
   const patchPending = (key: string, patch: Partial<PendingFile>) =>
     setPending((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
 
+  /**
+   * Reserved-Admin exclusivity in the UI (the backend also enforces it):
+   * picking Admin keeps ONLY Admin; picking another category while Admin is
+   * selected drops Admin. Never produces a mixed selection.
+   */
+  const toggleCatExclusive = (current: number[], catId: number): number[] => {
+    const adminId = categories.find(isAdminCategory)?.id;
+    if (catId === adminId) return current.includes(catId) ? [] : [catId];
+    const next = current.includes(catId)
+      ? current.filter((c) => c !== catId)
+      : [...current.filter((c) => c !== adminId), catId];
+    return next;
+  };
+
   const toggleCat = (key: string, catId: number) =>
     setPending((prev) =>
       prev.map((p) =>
-        p.key === key
-          ? { ...p, categoryIds: p.categoryIds.includes(catId) ? p.categoryIds.filter((c) => c !== catId) : [...p.categoryIds, catId] }
-          : p,
+        p.key === key ? { ...p, categoryIds: toggleCatExclusive(p.categoryIds, catId) } : p,
       ),
     );
 
@@ -170,6 +193,7 @@ export function AdminPhotosPage() {
         title: item.title,
         sortOrder: item.sortOrder,
         categoryIds: item.categoryIds,
+        crop: item.crop ?? undefined,
       });
       patchPending(item.key, { state: "done" });
     } catch (err) {
@@ -213,6 +237,52 @@ export function AdminPhotosPage() {
 
   const sorted = [...photos].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
   const visiblePhotos = catFilter == null ? sorted : sorted.filter((p) => p.categories.some((c) => c.id === catFilter));
+
+  // ---------- Bulk selection ----------
+  const toggleSelect = (id: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const selectAllVisible = () => setSelected(new Set(visiblePhotos.map((p) => p.id)));
+  const clearSelection = () => setSelected(new Set());
+  const selectedCount = selected.size;
+  const adminCat = categories.find(isAdminCategory);
+  /** Selected photos that currently sit in the reserved Admin category. */
+  const selectedAdminPhotos = photos.filter(
+    (p) => selected.has(p.id) && p.categories.some(isAdminCategory),
+  );
+
+  const applyBulk = async (add: number[], remove: number[]) => {
+    if (!token || selectedCount === 0 || bulkBusy) return;
+    const photoIds = [...selected];
+    const verb = [
+      add.length ? `gán ${add.length} danh mục` : "",
+      remove.length ? `bỏ ${remove.length} danh mục` : "",
+    ].filter(Boolean).join(" và ");
+    if (!window.confirm(`${verb} cho ${photoIds.length} ảnh đã chọn?`)) return;
+    setBulkBusy(true);
+    setBulkMsg(null);
+    try {
+      await bulkUpdatePhotoCategories(token, {
+        photoIds,
+        addCategoryIds: add.length ? add : undefined,
+        removeCategoryIds: remove.length ? remove : undefined,
+      });
+      setBulkMsg({ ok: true, text: `Đã cập nhật danh mục cho ${photoIds.length} ảnh.` });
+      setBulkOpen(false);
+      clearSelection();
+      await load(token);
+    } catch (err) {
+      const text = err instanceof ApiError ? err.message : "Cập nhật danh mục thất bại.";
+      setBulkMsg({ ok: false, text });
+      onApiError(err);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
   /** Cards without the dragged one — the insertion index addresses this list. */
   const others = dragId == null ? sorted : sorted.filter((p) => p.id !== dragId);
   const othersIndex = new Map(others.map((p, i) => [p.id, i]));
@@ -340,12 +410,32 @@ export function AdminPhotosPage() {
               <div key={p.key} className="rounded-xl border border-gray-200 bg-gray-50 p-3">
                 <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-gray-200">
                   {p.preview ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
-                    <img src={p.preview} alt={p.title} className="h-full w-full object-cover" />
+                    p.crop ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
+                      <img
+                        src={p.preview}
+                        alt={p.title}
+                        className="absolute"
+                        style={{
+                          left: `${(-p.crop.cropX / p.crop.cropW) * 100}%`,
+                          top: `${(-p.crop.cropY / p.crop.cropH) * 100}%`,
+                          width: `${100 / p.crop.cropW}%`,
+                          height: `${100 / p.crop.cropH}%`,
+                        }}
+                      />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
+                      <img src={p.preview} alt={p.title} className="h-full w-full object-cover" />
+                    )
                   ) : (
                     <div className="flex h-full items-center justify-center text-xs text-gray-400">
                       {p.state === "error" ? "Không xem trước được" : "Đang tạo xem trước…"}
                     </div>
+                  )}
+                  {p.crop && (
+                    <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white">
+                      Đã cắt
+                    </span>
                   )}
                   <button
                     type="button"
@@ -355,6 +445,15 @@ export function AdminPhotosPage() {
                   >
                     ✕
                   </button>
+                  {p.preview && (
+                    <button
+                      type="button"
+                      onClick={() => setCropKey(p.key)}
+                      className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-black/75"
+                    >
+                      {p.crop ? "Sửa vùng cắt" : "Cắt ảnh"}
+                    </button>
+                  )}
                 </div>
                 <div className="mt-3 space-y-2">
                   <input
@@ -375,10 +474,15 @@ export function AdminPhotosPage() {
                             : "bg-gray-200 text-gray-600 hover:bg-gray-300"
                         }`}
                       >
-                        {c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name}
+                        {categoryLabel(c)}
                       </button>
                     ))}
                   </div>
+                  {adminCat && p.categoryIds.includes(adminCat.id) && (
+                    <p className="text-[11px] text-amber-600">
+                      Danh mục Admin chỉ dành cho ảnh giới thiệu — không gán cùng danh mục khác.
+                    </p>
+                  )}
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-gray-500">Thứ tự</label>
                     <input
@@ -432,13 +536,43 @@ export function AdminPhotosPage() {
               <option value="">Tất cả danh mục</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name}
+                  {categoryLabel(c)}
                 </option>
               ))}
             </select>
             <Btn variant="ghost" onClick={() => token && load(token)}>Làm mới</Btn>
           </div>
         </div>
+
+        {/* Bulk-selection toolbar */}
+        <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-gray-100 pb-3">
+          <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={selectAllVisible}>
+            Chọn tất cả
+          </Btn>
+          <Btn
+            variant="ghost"
+            className="px-2.5 py-1 text-xs"
+            onClick={clearSelection}
+            disabled={selectedCount === 0}
+          >
+            Bỏ chọn
+          </Btn>
+          <span className="text-xs text-gray-500">
+            {selectedCount > 0 ? `Đã chọn ${selectedCount} ảnh` : "Chưa chọn ảnh nào"}
+          </span>
+          <Btn
+            className="ml-auto px-3 py-1 text-xs"
+            disabled={selectedCount === 0}
+            onClick={() => setBulkOpen(true)}
+          >
+            Chỉnh danh mục ({selectedCount})
+          </Btn>
+        </div>
+        {bulkMsg && (
+          <p className={`mb-4 rounded-[10px] px-4 py-3 text-sm ${bulkMsg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+            {bulkMsg.text}
+          </p>
+        )}
         {orderError && (
           <p className="mb-4 rounded-[10px] bg-red-50 px-4 py-3 text-sm text-red-600">{orderError}</p>
         )}
@@ -484,10 +618,27 @@ export function AdminPhotosPage() {
                       {p.status === "PUBLISHED" ? "Đã đăng" : "Bản nháp"}
                     </Badge>
                   </div>
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={selected.has(p.id)}
+                    aria-label={selected.has(p.id) ? "Bỏ chọn ảnh" : "Chọn ảnh"}
+                    onClick={() => toggleSelect(p.id)}
+                    className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md border text-xs font-bold transition-colors ${
+                      selected.has(p.id)
+                        ? "border-green-600 bg-green-600 text-white"
+                        : "border-gray-300 bg-white/80 text-transparent hover:border-green-500"
+                    }`}
+                  >
+                    ✓
+                  </button>
                   {p.isFeatured && (
-                    <div className="absolute right-2 top-2">
+                    <div className="absolute right-2 top-9">
                       <Badge color="bg-green-100 text-green-700">Nổi bật</Badge>
                     </div>
+                  )}
+                  {selected.has(p.id) && (
+                    <div aria-hidden="true" className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-green-500" />
                   )}
                 </div>
                 <div className="flex flex-1 flex-col p-3">
@@ -495,7 +646,7 @@ export function AdminPhotosPage() {
                   <div className="mt-1 flex h-[22px] flex-nowrap gap-1 overflow-hidden">
                     {p.categories.map((c) => (
                       <span key={c.id} className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
-                        {c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name}
+                        {categoryLabel(c)}
                       </span>
                     ))}
                   </div>
@@ -561,7 +712,111 @@ export function AdminPhotosPage() {
           token={token}
         />
       )}
+
+      {cropKey && (() => {
+        const item = pending.find((p) => p.key === cropKey);
+        if (!item?.preview) return null;
+        return (
+          <CropEditor
+            src={item.preview}
+            title={`Cắt ảnh: ${item.title || item.file.name}`}
+            initial={item.crop}
+            onClose={() => setCropKey(null)}
+            onApply={(crop) => {
+              patchPending(cropKey, { crop });
+              setCropKey(null);
+            }}
+          />
+        );
+      })()}
+
+      {bulkOpen && (
+        <BulkCategoryModal
+          categories={categories}
+          selectedCount={selectedCount}
+          adminPhotoCount={selectedAdminPhotos.length}
+          busy={bulkBusy}
+          onClose={() => setBulkOpen(false)}
+          onApply={applyBulk}
+        />
+      )}
     </div>
+  );
+}
+
+function BulkCategoryModal({
+  categories,
+  selectedCount,
+  adminPhotoCount,
+  busy,
+  onClose,
+  onApply,
+}: {
+  categories: Category[];
+  selectedCount: number;
+  adminPhotoCount: number;
+  busy: boolean;
+  onClose: () => void;
+  onApply: (add: number[], remove: number[]) => void;
+}) {
+  const [add, setAdd] = useState<Set<number>>(new Set());
+  const [remove, setRemove] = useState<Set<number>>(new Set());
+  const adminCat = categories.find(isAdminCategory);
+  const addingAdmin = adminCat != null && add.has(adminCat.id);
+
+  const toggle = (set: Set<number>, id: number, apply: (s: Set<number>) => void) => {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    apply(next);
+  };
+
+  const chips = (current: Set<number>, apply: (s: Set<number>) => void) =>
+    categories.map((c) => (
+      <button
+        key={c.id}
+        type="button"
+        onClick={() => toggle(current, c.id, apply)}
+        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+          current.has(c.id) ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+        }`}
+      >
+        {categoryLabel(c)}
+      </button>
+    ));
+
+  return (
+    <Modal open onClose={onClose} title={`Chỉnh danh mục cho ${selectedCount} ảnh`}>
+      <div className="space-y-4">
+        <div>
+          <label className={labelCls}>Gán thêm</label>
+          <div className="flex flex-wrap gap-1.5">{chips(add, setAdd)}</div>
+        </div>
+        <div>
+          <label className={labelCls}>Bỏ khỏi</label>
+          <div className="flex flex-wrap gap-1.5">{chips(remove, setRemove)}</div>
+        </div>
+        {addingAdmin && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            Danh mục Admin chỉ dành cho ảnh giới thiệu: mỗi ảnh được gán Admin sẽ BỊ GỠ tất cả danh mục khác và biến mất khỏi trang công khai.
+          </p>
+        )}
+        {!addingAdmin && adminPhotoCount > 0 && add.size > 0 && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            {adminPhotoCount} ảnh đã chọn đang thuộc danh mục Admin — không thể gán danh mục khác cho chúng.
+          </p>
+        )}
+        <div className="flex justify-end gap-2 pt-2">
+          <Btn variant="ghost" onClick={onClose}>Hủy</Btn>
+          <Btn
+            onClick={() => onApply([...add], [...remove])}
+            disabled={busy || (add.size === 0 && remove.size === 0)}
+          >
+            {busy ? "Đang áp dụng…" : "Áp dụng"}
+          </Btn>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -587,12 +842,41 @@ function EditPhotoModal({
   const [isFeatured, setIsFeatured] = useState(photo.isFeatured);
   const [catIds, setCatIds] = useState<number[]>(photo.categories.map((c) => c.id));
   const [saving, setSaving] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
+  /** Pending crop change: "set" applies fractions, "cleared" removes the crop. */
+  const [cropAction, setCropAction] = useState<
+    { kind: "unchanged" } | { kind: "set"; crop: CropFraction } | { kind: "cleared" }
+  >({ kind: "unchanged" });
+  const adminCat = categories.find(isAdminCategory);
+  const savedCrop: CropFraction | null =
+    photo.cropX != null && photo.cropY != null && photo.cropW != null && photo.cropH != null
+      ? { cropX: photo.cropX, cropY: photo.cropY, cropW: photo.cropW, cropH: photo.cropH }
+      : null;
+
+  const toggleCat = (catId: number) => {
+    if (catId === adminCat?.id) {
+      setCatIds((prev) => (prev.includes(catId) ? [] : [catId]));
+      return;
+    }
+    setCatIds((prev) =>
+      prev.includes(catId)
+        ? prev.filter((x) => x !== catId)
+        : [...prev.filter((x) => x !== adminCat?.id), catId],
+    );
+  };
 
   const save = async () => {
     if (!token) return;
     setSaving(true);
     try {
-      await updatePhoto(token, photo.id, { title, description, altText, sortOrder, isFeatured, categoryIds: catIds });
+      await updatePhoto(token, photo.id, {
+        title, description, altText, sortOrder, isFeatured, categoryIds: catIds,
+        ...(cropAction.kind === "cleared"
+          ? { clearCrop: true }
+          : cropAction.kind === "set"
+            ? { ...cropAction.crop }
+            : {}),
+      });
       onSaved();
     } catch (err) {
       if (!onError(err)) alert("Lưu ảnh thất bại.");
@@ -635,21 +919,53 @@ function EditPhotoModal({
               <button
                 key={c.id}
                 type="button"
-                onClick={() => setCatIds((prev) => (prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id]))}
+                onClick={() => toggleCat(c.id)}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                   catIds.includes(c.id) ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
-                {c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name}
+                {categoryLabel(c)}
               </button>
             ))}
           </div>
+          {adminCat && catIds.includes(adminCat.id) && (
+            <p className="mt-1.5 text-[11px] text-amber-600">
+              Danh mục Admin chỉ dành cho ảnh giới thiệu — không gán cùng danh mục khác.
+            </p>
+          )}
+        </div>
+        <div className="flex items-center justify-between rounded-xl bg-gray-50 px-3.5 py-2.5">
+          <span className="text-xs text-gray-500">
+            Vùng cắt:{" "}
+            {cropAction.kind === "cleared"
+              ? "sẽ bỏ cắt"
+              : cropAction.kind === "set"
+                ? "đã chỉnh (chưa lưu)"
+                : savedCrop
+                  ? "đã cắt"
+                  : "ảnh gốc"}
+          </span>
+          <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => setCropOpen(true)}>
+            Cắt ảnh
+          </Btn>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Btn variant="ghost" onClick={onClose}>Hủy</Btn>
           <Btn onClick={save} disabled={saving}>{saving ? "Đang lưu…" : "Lưu thay đổi"}</Btn>
         </div>
       </div>
+      {cropOpen && (
+        <CropEditor
+          src={photo.originalImageUrl ?? photo.imageUrl}
+          title={`Cắt ảnh: ${photo.title ?? `#${photo.id}`}`}
+          initial={cropAction.kind === "set" ? cropAction.crop : savedCrop}
+          onClose={() => setCropOpen(false)}
+          onApply={(crop) => {
+            setCropAction(crop ? { kind: "set", crop } : { kind: "cleared" });
+            setCropOpen(false);
+          }}
+        />
+      )}
     </Modal>
   );
 }

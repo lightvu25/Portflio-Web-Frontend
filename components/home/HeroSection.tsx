@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { CtaArrowLink } from "@/components/shared/CtaArrowLink";
 import type { SiteSettings } from "@/types/site";
 
 /** Decorative concentric-rings widget — matches the reference hero's center ornament. */
@@ -47,15 +47,7 @@ export function HeroSection({ site }: { site: SiteSettings | null }) {
             <p className="font-semibold text-[32px] font-semibold leading-none text-absolutewhite sm:text-[44px] lg:text-[54px]">
               CÙNG
             </p>
-            <Link
-              href="/booking"
-              aria-label="Đặt lịch chụp"
-              className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-purple-55 shadow-[inset_4px_4px_17.4px_#ffffff47] transition-transform hover:scale-105 sm:h-14 sm:w-14"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M7 17L17 7M17 7H9M17 7v8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </Link>
+            <CtaArrowLink />
           </div>
           <p className="font-semibold text-[32px] font-semibold leading-none text-absolutewhite sm:text-[44px] lg:text-[54px]">
             HỢP TÁC

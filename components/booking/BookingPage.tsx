@@ -274,7 +274,7 @@ function BookingForm({ packages }: { packages: PricingPackage[] }) {
             )}
 
             {state === "error" && (
-              <p className="rounded-[10px] bg-red-900/30 px-4 py-3 text-sm text-red-300">
+              <p role="alert" className="text-sm text-red-400">
                 {errorMsg}
               </p>
             )}

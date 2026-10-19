@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createCategory, deleteCategory, getAdminCategories, updateCategory } from "@/lib/api/categories";
 import { useAdmin } from "@/lib/auth/useAdmin";
+import { isAdminCategory } from "@/lib/labels";
 import type { Category, CategoryType } from "@/types/category";
 import { Btn, Card, EmptyState, inputCls, labelCls, Modal, Spinner } from "@/components/admin/ui";
 
@@ -112,7 +113,7 @@ export function AdminCategoriesPage() {
                   <td className="py-3 pr-4 font-medium text-gray-800">{c.name}</td>
                   <td className="py-3 pr-4">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${c.type === "PACKAGE" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                      {c.type === "PACKAGE" ? "Gói dịch vụ" : "Portfolio"}
+                      {isAdminCategory(c) ? "Hệ thống" : c.type === "PACKAGE" ? "Gói dịch vụ" : "Portfolio"}
                     </span>
                   </td>
                   <td className="py-3 pr-4 text-gray-500">{c.slug}</td>
@@ -120,7 +121,15 @@ export function AdminCategoriesPage() {
                   <td className="py-3">
                     <div className="flex gap-2">
                       <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => openEdit(c)}>Sửa</Btn>
-                      <Btn variant="danger" className="px-2.5 py-1 text-xs" onClick={() => remove(c)}>Xóa</Btn>
+                      <Btn
+                        variant="danger"
+                        className="px-2.5 py-1 text-xs"
+                        onClick={() => remove(c)}
+                        disabled={isAdminCategory(c)}
+                        title={isAdminCategory(c) ? "Danh mục hệ thống — không thể xoá" : undefined}
+                      >
+                        Xóa
+                      </Btn>
                     </div>
                   </td>
                 </tr>
@@ -146,10 +155,20 @@ export function AdminCategoriesPage() {
           </div>
           <div>
             <label className={labelCls}>Loại danh mục</label>
-            <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as CategoryType)}>
+            <select
+              className={inputCls}
+              value={type}
+              onChange={(e) => setType(e.target.value as CategoryType)}
+              disabled={editing != null && isAdminCategory(editing)}
+            >
               <option value="PORTFOLIO">Portfolio (hiển thị công khai)</option>
               <option value="PACKAGE">Gói dịch vụ (ảnh gói — không hiện gallery)</option>
             </select>
+            {editing != null && isAdminCategory(editing) && (
+              <p className="mt-1.5 text-[11px] text-amber-600">
+                Danh mục Admin là danh mục hệ thống — chỉ dành cho ảnh giới thiệu, không hiển thị công khai.
+              </p>
+            )}
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Btn variant="ghost" onClick={() => setModalOpen(false)}>Hủy</Btn>

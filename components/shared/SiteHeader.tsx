@@ -83,7 +83,7 @@ export function SiteHeader() {
         <div className="flex items-center gap-3">
           <Link
             href="/booking"
-            className="hidden rounded-[10px] bg-purple-55 px-5 py-2.5 font-medium text-sm text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-transform hover:scale-[1.03] md:inline-block"
+            className="hidden rounded-full bg-purple-55 px-6 py-3 font-medium text-sm text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-transform hover:scale-[1.03] md:inline-block"
           >
             Liên hệ
           </Link>

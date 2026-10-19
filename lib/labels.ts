@@ -3,8 +3,28 @@
  * Domain values stay in English (PENDING, DRAFT, ...) — only labels change.
  */
 import type { BookingStatus, SessionType, Slot } from "@/types/booking";
+import type { Category } from "@/types/category";
 import type { PaymentStatus } from "@/types/payment";
 import type { PhotoStatus } from "@/types/photo";
+
+/**
+ * Slug of the reserved internal category (seeded by backend migration V10,
+ * renamed to "Admin" in V11). It holds the photographer's self-introduction
+ * photo only — never shown in public listings and never combined with other
+ * categories on one photo.
+ */
+export const ADMIN_CATEGORY_SLUG = "admin-noi-bo";
+
+export const isAdminCategory = (c: Category) => c.slug === ADMIN_CATEGORY_SLUG;
+
+/**
+ * Display label for a category chip/select option. The reserved Admin
+ * category shows plainly as "Admin" (never "Gói · Admin").
+ */
+export function categoryLabel(c: Category): string {
+  if (isAdminCategory(c)) return "Admin";
+  return c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name;
+}
 
 export const bookingStatusLabel: Record<BookingStatus, string> = {
   PENDING: "Chờ xử lý",

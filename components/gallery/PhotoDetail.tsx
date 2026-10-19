@@ -93,7 +93,7 @@ export function PhotoDetail({
             )}
           </div>
 
-          <div className="rounded-[14px] border border-dark-12 bg-dark-08 p-6">
+          <div className="rounded-[14px] bg-dark-08 p-6">
             <p className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
               Gói liên quan
             </p>

@@ -26,7 +26,6 @@ export async function HomePage() {
   // Spread photos across sections so the same few images don't repeat.
   const list = photos.data;
   const collage = list.slice(0, 5);
-  const about = list.slice(4, 5);
   const preview = list.slice(5, 13);
 
   return (
@@ -49,7 +48,7 @@ export async function HomePage() {
         </section>
       )}
       <Reveal from="left">
-        <AboutSection photos={about} site={site} />
+        <AboutSection site={site} />
       </Reveal>
       <Reveal from="up">
         <ServicesPreviewSection categories={categories} photos={list} />

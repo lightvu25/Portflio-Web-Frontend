@@ -14,7 +14,14 @@ export interface Photo {
   description: string | null;
   cloudinaryPublicId: string;
   imageUrl: string;
+  /** Untouched upload URL — set once a crop exists; imageUrl then carries the transform. */
+  originalImageUrl: string | null;
   thumbnailUrl: string | null;
+  /** Saved crop as fractions of the stored image (0..1); all four set or none. */
+  cropX: number | null;
+  cropY: number | null;
+  cropW: number | null;
+  cropH: number | null;
   altText: string | null;
   status: PhotoStatus;
   isFeatured: boolean;
@@ -32,4 +39,11 @@ export interface PhotoUpdateRequest {
   isFeatured?: boolean;
   sortOrder?: number;
   categoryIds?: number[];
+  /** New crop (0..1 fractions) — applied only when all four are sent. */
+  cropX?: number;
+  cropY?: number;
+  cropW?: number;
+  cropH?: number;
+  /** Remove the saved crop and restore the original URL. */
+  clearCrop?: boolean;
 }

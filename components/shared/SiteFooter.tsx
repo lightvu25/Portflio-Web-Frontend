@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CategoryMarquee } from "@/components/shared/CategoryMarquee";
+import { CtaArrowLink } from "@/components/shared/CtaArrowLink";
 import { CONTACT, FacebookIcon, InstagramIcon } from "@/components/shared/contact";
 import { getCategories } from "@/lib/api/categories";
 import { getSiteSettings } from "@/lib/api/site";
@@ -55,15 +56,7 @@ export function SiteFooter() {
             <p className="font-semibold text-4xl font-semibold leading-tight text-absolutewhite md:text-5xl">
               CÙNG NHAU
             </p>
-            <Link
-              href="/booking"
-              aria-label="Đặt lịch chụp"
-              className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-purple-55 text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-transform hover:scale-105"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M7 17L17 7M17 7H9M17 7v8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </Link>
+            <CtaArrowLink />
           </div>
           <p className="mt-1 font-semibold text-4xl font-semibold leading-tight text-absolutewhite md:text-5xl">
             TẠO KHOẢNH KHẮC

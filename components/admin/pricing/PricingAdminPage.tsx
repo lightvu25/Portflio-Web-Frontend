@@ -6,7 +6,7 @@ import { getAdminCategories } from "@/lib/api/categories";
 import { getAdminPhotos } from "@/lib/api/photos";
 import { ApiError } from "@/lib/api/client";
 import { useAdmin } from "@/lib/auth/useAdmin";
-import { formatVnd, sessionTypeLabel } from "@/lib/labels";
+import { categoryLabel, formatVnd, isAdminCategory, sessionTypeLabel } from "@/lib/labels";
 import type { SessionType } from "@/types/booking";
 import type { Category } from "@/types/category";
 import type { Photo } from "@/types/photo";
@@ -93,9 +93,13 @@ export function AdminPricingPage() {
     setPickerOpen(false);
   };
 
-  // Package categories first — they're the intended cover library.
+  // Package categories first — they're the intended cover library. Photos in
+  // the reserved Admin category are excluded: that image is for the homepage
+  // About section only and must never surface on public pages.
   const pickerPhotos = (photos ?? []).filter(
-    (p) => pickerCatId == null || p.categories.some((c) => c.id === pickerCatId),
+    (p) =>
+      !p.categories.some(isAdminCategory) &&
+      (pickerCatId == null || p.categories.some((c) => c.id === pickerCatId)),
   );
 
   const save = async () => {
@@ -254,14 +258,14 @@ export function AdminPricingPage() {
           >
             Tất cả
           </button>
-          {[...pickerCats].sort((a, b) => Number(b.type === "PACKAGE") - Number(a.type === "PACKAGE")).map((c) => (
+          {[...pickerCats].filter((c) => !isAdminCategory(c)).sort((a, b) => Number(b.type === "PACKAGE") - Number(a.type === "PACKAGE")).map((c) => (
             <button
               key={c.id}
               type="button"
               onClick={() => setPickerCatId(c.id)}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${pickerCatId === c.id ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
             >
-              {c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name}
+              {categoryLabel(c)}
             </button>
           ))}
         </div>
