@@ -5,5 +5,10 @@ export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const packages = await fetchPricing();
-  return <BookingPage packages={packages} />;
+  return (
+    <BookingPage
+      packages={packages}
+      turnstileSiteKey={process.env.TURNSTILE_SITE_KEY}
+    />
+  );
 }

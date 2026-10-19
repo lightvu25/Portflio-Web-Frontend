@@ -7,11 +7,13 @@ import { Reveal } from "@/components/shared/Reveal";
 import { getAvailability } from "@/lib/api/availability";
 import { createBooking } from "@/lib/api/bookings";
 import { formatVnd, sessionTypeLabel, slotLabel } from "@/lib/labels";
+import { resolveCaptchaToken } from "@/lib/turnstile";
 import type { AvailabilityResponse } from "@/types/availability";
 import type { PricingPackage } from "@/types/pricing";
 import type { Slot } from "@/types/booking";
 
-const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+/** NODE_ENV is inlined at build time — production builds can never bypass. */
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 declare global {
   interface Window {
@@ -29,11 +31,19 @@ const label =
 
 /**
  * Booking page — real submission via POST /api/bookings.
- * Turnstile: renders the Cloudflare widget when NEXT_PUBLIC_TURNSTILE_SITE_KEY
- * is set (production); without a key a placeholder token is sent for local dev
- * where the backend runs TURNSTILE_ENABLED=false.
+ * Turnstile: renders the Cloudflare widget when turnstileSiteKey is set
+ * (production — TURNSTILE_SITE_KEY is read server-side and passed in).
+ * The "local-dev" bypass is dev-builds-only — a missing site key in
+ * production blocks submission with a clear error instead of sending a
+ * token that can never verify.
  */
-function BookingForm({ packages }: { packages: PricingPackage[] }) {
+function BookingForm({
+  packages,
+  turnstileSiteKey,
+}: {
+  packages: PricingPackage[];
+  turnstileSiteKey: string | undefined;
+}) {
   const params = useSearchParams();
   const initial = Number(params.get("package"));
   const [pkgId, setPkgId] = useState(
@@ -51,19 +61,26 @@ function BookingForm({ packages }: { packages: PricingPackage[] }) {
   const [errorMsg, setErrorMsg] = useState("");
   const [bookingCode, setBookingCode] = useState("");
   const [tsToken, setTsToken] = useState("");
+  /** Widget script failed to load/render — no token can ever be issued. */
+  const [captchaFailed, setCaptchaFailed] = useState(false);
   const turnstileRef = useRef<HTMLDivElement>(null);
   const turnstileId = useRef<string | null>(null);
 
   const renderTurnstile = () => {
-    if (!TURNSTILE_SITE_KEY || !turnstileRef.current || !window.turnstile) return;
+    if (!turnstileSiteKey || !turnstileRef.current || !window.turnstile) return;
     if (turnstileId.current !== null) return;
-    turnstileId.current = window.turnstile.render(turnstileRef.current, {
-      sitekey: TURNSTILE_SITE_KEY,
-      callback: (token: string) => setTsToken(token),
-      "expired-callback": () => setTsToken(""),
-      "error-callback": () => setTsToken(""),
-      theme: "dark",
-    });
+    try {
+      turnstileId.current = window.turnstile.render(turnstileRef.current, {
+        sitekey: turnstileSiteKey,
+        callback: (token: string) => setTsToken(token),
+        "expired-callback": () => setTsToken(""),
+        "error-callback": () => setTsToken(""),
+        "timeout-callback": () => setTsToken(""),
+        theme: "dark",
+      });
+    } catch {
+      setCaptchaFailed(true);
+    }
   };
 
   const resetTurnstile = () => {
@@ -106,8 +123,18 @@ function BookingForm({ packages }: { packages: PricingPackage[] }) {
       setState("error");
       return;
     }
-    if (TURNSTILE_SITE_KEY && !tsToken) {
-      setErrorMsg("Vui lòng hoàn thành xác nhận captcha.");
+    const captcha = resolveCaptchaToken({
+      siteKey: turnstileSiteKey,
+      token: tsToken,
+      isProduction: IS_PRODUCTION,
+      widgetFailed: captchaFailed,
+    });
+    if (!captcha.ok) {
+      setErrorMsg(
+        captcha.reason === "missing-token"
+          ? "Vui lòng hoàn thành xác nhận captcha."
+          : "Xác nhận bảo mật chưa sẵn sàng — vui lòng tải lại trang hoặc thử lại sau.",
+      );
       setState("error");
       return;
     }
@@ -121,7 +148,7 @@ function BookingForm({ packages }: { packages: PricingPackage[] }) {
         bookingDate: date,
         slot: isFullDay ? undefined : slot,
         address: address.trim(),
-        turnstileToken: TURNSTILE_SITE_KEY ? tsToken : "local-dev",
+        turnstileToken: captcha.token,
       });
       setBookingCode(booking.bookingCode);
       setState("sent");
@@ -262,15 +289,27 @@ function BookingForm({ packages }: { packages: PricingPackage[] }) {
               </div>
             </div>
 
-            {TURNSTILE_SITE_KEY && (
+            {turnstileSiteKey ? (
               <>
                 <Script
                   src="https://challenges.cloudflare.com/turnstile/v0/api.js"
                   strategy="afterInteractive"
-                  onLoad={renderTurnstile}
+                  onReady={renderTurnstile}
+                  onError={() => setCaptchaFailed(true)}
                 />
                 <div ref={turnstileRef} />
+                {captchaFailed && (
+                  <p className="text-sm text-red-400">
+                    Không tải được xác nhận bảo mật — vui lòng kiểm tra kết nối và tải lại trang.
+                  </p>
+                )}
               </>
+            ) : (
+              IS_PRODUCTION && (
+                <p role="alert" className="text-sm text-red-400">
+                  Xác nhận bảo mật chưa sẵn sàng — vui lòng tải lại trang hoặc thử lại sau.
+                </p>
+              )
             )}
 
             {state === "error" && (
@@ -295,10 +334,16 @@ function BookingForm({ packages }: { packages: PricingPackage[] }) {
   );
 }
 
-export function BookingPage({ packages }: { packages: PricingPackage[] }) {
+export function BookingPage({
+  packages,
+  turnstileSiteKey,
+}: {
+  packages: PricingPackage[];
+  turnstileSiteKey: string | undefined;
+}) {
   return (
     <Suspense>
-      <BookingForm packages={packages} />
+      <BookingForm packages={packages} turnstileSiteKey={turnstileSiteKey} />
     </Suspense>
   );
 }
