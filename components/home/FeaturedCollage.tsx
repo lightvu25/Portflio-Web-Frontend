@@ -13,6 +13,7 @@ function Tile({ photo, className, sizes, priority = false }: { photo?: Photo; cl
         src={photo.imageUrl}
         alt={photo.altText ?? photo.title ?? "Ảnh"}
         fill
+        quality={100}
         sizes={sizes}
         priority={priority}
         className="object-cover transition-transform duration-300 group-hover:scale-105"
@@ -35,18 +36,18 @@ export function FeaturedCollage({ photos }: { photos: Photo[] }) {
       <div className="mx-auto max-w-[1400px] px-5 py-10 md:px-10 md:py-16">
         {/* Desktop asymmetric composition */}
         <div className="hidden grid-cols-12 grid-rows-2 gap-4 md:grid md:h-[560px]">
-          <Tile photo={a} sizes="(min-width: 1400px) 381px, calc(33.33vw - 85px)" className="col-span-4 row-span-1" />
-          <Tile photo={feature} sizes="(min-width: 1400px) 763px, calc(66.67vw - 171px)" priority className="col-span-8 row-span-2" />
-          <Tile photo={b} sizes="(min-width: 1400px) 191px, calc(16.67vw - 43px)" className="col-span-2 row-span-1" />
-          <Tile photo={c} sizes="(min-width: 1400px) 191px, calc(16.67vw - 43px)" className="col-span-2 row-span-1" />
+          <Tile photo={a} sizes="(min-width: 1400px) 460px, 34vw" className="col-span-4 row-span-1" />
+          <Tile photo={feature} sizes="(min-width: 1400px) 920px, 67vw" priority className="col-span-8 row-span-2" />
+          <Tile photo={b} sizes="(min-width: 1400px) 430px, 30vw" className="col-span-2 row-span-1" />
+          <Tile photo={c} sizes="(min-width: 1400px) 430px, 30vw" className="col-span-2 row-span-1" />
         </div>
 
         {/* Mobile: feature + 2-col support row */}
         <div className="grid gap-4 md:hidden">
-          <Tile photo={feature} sizes="calc(100vw - 40px)" priority className="aspect-[4/3]" />
+          <Tile photo={feature} sizes="100vw" priority className="aspect-[4/3]" />
           <div className="grid grid-cols-2 gap-4">
             {[a, b, c, d].filter(Boolean).slice(0, 4).map((p) => (
-              <Tile key={p!.id} photo={p} sizes="calc(50vw - 28px)" className="aspect-square" />
+              <Tile key={p!.id} photo={p} sizes="68vw" className="aspect-square" />
             ))}
           </div>
         </div>

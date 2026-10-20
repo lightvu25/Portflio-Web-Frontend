@@ -39,7 +39,8 @@ function FeedbackCard({ t, featured = false }: { t: Feedback; featured?: boolean
               src={t.imageUrl}
               alt={`Ảnh buổi chụp — ${t.customerName}`}
               fill
-              sizes="(min-width: 1400px) 620px, (min-width: 768px) 45vw, 100vw"
+              quality={100}
+              sizes="(min-width: 1280px) 620px, (min-width: 768px) 50vw, 100vw"
               className="object-cover"
             />
           </div>
@@ -63,7 +64,8 @@ function FeedbackCard({ t, featured = false }: { t: Feedback; featured?: boolean
             src={t.imageUrl}
             alt={`Ảnh buổi chụp — ${t.customerName}`}
             fill
-            sizes="(min-width: 1024px) 450px, (min-width: 640px) 45vw, 100vw"
+            quality={100}
+            sizes="(min-width: 1024px) 480px, (min-width: 640px) 50vw, 100vw"
             className="object-cover"
           />
         </div>

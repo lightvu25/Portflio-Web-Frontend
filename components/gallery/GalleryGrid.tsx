@@ -72,7 +72,8 @@ export function GalleryGrid({
                 src={p.imageUrl}
                 alt={p.altText ?? p.title ?? "Ảnh"}
                 fill
-                sizes="(min-width: 1400px) 318px, (min-width: 1280px) calc(25vw - 32px), (min-width: 768px) calc(33.33vw - 37px), calc(50vw - 28px)"
+                quality={100}
+                sizes="(min-width: 1280px) 600px, (min-width: 768px) 60vw, 90vw"
                 className="object-cover transition-transform duration-300 group-hover:scale-105"
               />
             </div>

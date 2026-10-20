@@ -57,7 +57,8 @@ export function AboutSection({ site }: { site: SiteSettings | null }) {
                   src={portrait.imageUrl}
                   alt={portrait.altText ?? portrait.title ?? `Chân dung ${name}`}
                   fill
-                  sizes="(min-width: 1400px) 660px, (min-width: 1024px) calc(50vw - 40px), calc(100vw - 40px)"
+                  quality={100}
+                  sizes="(min-width: 1280px) 800px, (min-width: 1024px) 60vw, 100vw"
                   className="object-cover"
                 />
               </div>

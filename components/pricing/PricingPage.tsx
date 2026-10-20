@@ -113,7 +113,8 @@ export function PricingPage({
                         src={img}
                         alt={g.title}
                         fill
-                        sizes="(min-width: 1400px) 427px, (min-width: 640px) calc(33.33vw - 40px), calc(100vw - 40px)"
+                        quality={100}
+                        sizes="(min-width: 1280px) 480px, (min-width: 640px) 33vw, 100vw"
                         className="object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     )}
@@ -160,7 +161,8 @@ export function PricingPage({
                     src={img}
                     alt={`${p.name} — ${sessionTypeLabel[p.sessionType]}`}
                     fill
-                    sizes="(min-width: 1400px) 427px, (min-width: 1024px) calc(33.33vw - 40px), (min-width: 640px) calc(50vw - 52px), calc(100vw - 40px)"
+                    quality={100}
+                    sizes="(min-width: 1280px) 480px, (min-width: 1024px) 38vw, (min-width: 640px) 50vw, 100vw"
                     className="object-cover"
                   />
                 </div>

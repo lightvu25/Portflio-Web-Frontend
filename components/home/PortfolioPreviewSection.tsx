@@ -22,7 +22,8 @@ function PhotoGroup({ photos }: { photos: Photo[] }) {
             src={p.imageUrl}
             alt={p.altText ?? p.title ?? "Ảnh"}
             fill
-            sizes="(min-width: 1480px) 332px, (min-width: 1024px) calc(25vw - 38px), (min-width: 640px) calc(33.33vw - 30px), calc(50vw - 32px)"
+            quality={100}
+            sizes="(min-width: 1480px) 600px, (min-width: 1024px) 45vw, (min-width: 640px) 60vw, 90vw"
             className="object-cover transition-transform duration-300 group-hover/img:scale-105"
           />
         </Link>

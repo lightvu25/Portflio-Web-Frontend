@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     NEXT_API_URL: process.env.NEXT_API_URL ?? "http://localhost:8080",
   },
   images: {
+    qualities: [75, 100],
     remotePatterns: [
       {
         protocol: "https",
