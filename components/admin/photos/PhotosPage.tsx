@@ -84,6 +84,8 @@ export function AdminPhotosPage() {
   const [catFilter, setCatFilter] = useState<number | null>(null);
   /** Multi-select for bulk category editing. */
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
+  const [zoomedPhoto, setZoomedPhoto] = useState<Photo | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMsg, setBulkMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -246,7 +248,10 @@ export function AdminPhotosPage() {
       else next.add(id);
       return next;
     });
-  const selectAllVisible = () => setSelected(new Set(visiblePhotos.map((p) => p.id)));
+  const selectAllVisible = () => {
+    setSelectMode(true);
+    setSelected(new Set(visiblePhotos.map((p) => p.id)));
+  };
   const clearSelection = () => setSelected(new Set());
   const selectedCount = selected.size;
   const adminCat = categories.find(isAdminCategory);
@@ -254,6 +259,9 @@ export function AdminPhotosPage() {
   const selectedAdminPhotos = photos.filter(
     (p) => selected.has(p.id) && p.categories.some(isAdminCategory),
   );
+  const zoomedIndex = zoomedPhoto ? visiblePhotos.findIndex((p) => p.id === zoomedPhoto.id) : -1;
+  const prevZoomedPhoto = zoomedIndex > 0 ? visiblePhotos[zoomedIndex - 1] : undefined;
+  const nextZoomedPhoto = zoomedIndex >= 0 && zoomedIndex < visiblePhotos.length - 1 ? visiblePhotos[zoomedIndex + 1] : undefined;
 
   const applyBulk = async (add: number[], remove: number[]) => {
     if (!token || selectedCount === 0 || bulkBusy) return;
@@ -546,27 +554,50 @@ export function AdminPhotosPage() {
 
         {/* Bulk-selection toolbar */}
         <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-gray-100 pb-3">
-          <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={selectAllVisible}>
-            Chọn tất cả
-          </Btn>
           <Btn
-            variant="ghost"
-            className="px-2.5 py-1 text-xs"
-            onClick={clearSelection}
-            disabled={selectedCount === 0}
+            variant={selectMode ? "primary" : "ghost"}
+            className="px-3 py-1 text-xs"
+            onClick={() => {
+              if (selectMode) {
+                setSelectMode(false);
+                clearSelection();
+              } else {
+                setSelectMode(true);
+              }
+            }}
           >
-            Bỏ chọn
+            {selectMode ? "✓ Chế độ chọn (Đang bật)" : "Bật chọn ảnh"}
           </Btn>
-          <span className="text-xs text-gray-500">
-            {selectedCount > 0 ? `Đã chọn ${selectedCount} ảnh` : "Chưa chọn ảnh nào"}
-          </span>
-          <Btn
-            className="ml-auto px-3 py-1 text-xs"
-            disabled={selectedCount === 0}
-            onClick={() => setBulkOpen(true)}
-          >
-            Chỉnh danh mục ({selectedCount})
-          </Btn>
+          {selectMode && (
+            <>
+              <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={selectAllVisible}>
+                Chọn tất cả
+              </Btn>
+              <Btn
+                variant="ghost"
+                className="px-2.5 py-1 text-xs"
+                onClick={clearSelection}
+                disabled={selectedCount === 0}
+              >
+                Bỏ chọn
+              </Btn>
+              <span className="text-xs text-gray-500">
+                {selectedCount > 0 ? `Đã chọn ${selectedCount} ảnh` : "Chưa chọn ảnh nào (nhấp vào ảnh để chọn)"}
+              </span>
+              <Btn
+                className="ml-auto px-3 py-1 text-xs"
+                disabled={selectedCount === 0}
+                onClick={() => setBulkOpen(true)}
+              >
+                Chỉnh danh mục ({selectedCount})
+              </Btn>
+            </>
+          )}
+          {!selectMode && (
+            <span className="text-xs text-gray-400">
+              Nhấp vào ảnh để phóng to xem chi tiết
+            </span>
+          )}
         </div>
         {bulkMsg && (
           <p className={`mb-4 rounded-[10px] px-4 py-3 text-sm ${bulkMsg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
@@ -600,44 +631,78 @@ export function AdminPhotosPage() {
                 style={{ left: indicator.left, top: indicator.top, height: indicator.height }}
               />
             )}
-            {visiblePhotos.map((p) => (
+            {visiblePhotos.map((p) => {
+              const isSelected = selected.has(p.id);
+              return (
               <article
                 key={p.id}
                 onDragOver={(e) => overCard(e, p)}
+                onClick={() => {
+                  if (selectMode) {
+                    toggleSelect(p.id);
+                  }
+                }}
                 className={`flex flex-col overflow-hidden rounded-xl border bg-white transition ${
+                  selectMode ? "cursor-pointer" : ""
+                } ${
                   dragId === p.id
                     ? "border-dashed border-green-400 opacity-40"
-                    : "border-gray-200 hover:shadow-md"
+                    : isSelected && selectMode
+                      ? "border-green-600 ring-2 ring-green-500 shadow-md"
+                      : "border-gray-200 hover:shadow-md"
                 }`}
               >
-                <div className="relative aspect-square overflow-hidden bg-gray-100">
+                <div
+                  className={`relative aspect-square overflow-hidden bg-gray-100 ${
+                    !selectMode ? "cursor-zoom-in group" : ""
+                  }`}
+                  onClick={(e) => {
+                    if (!selectMode) {
+                      e.stopPropagation();
+                      setZoomedPhoto(p);
+                    }
+                  }}
+                  title={!selectMode ? "Nhấp để xem ảnh phóng to" : undefined}
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary thumbnail URL */}
-                  <img src={p.thumbnailUrl ?? p.imageUrl} alt={p.altText ?? p.title ?? "Ảnh"} className="h-full w-full object-cover" draggable={false} />
-                  <div className="absolute left-2 top-2">
+                  <img
+                    src={p.thumbnailUrl ?? p.imageUrl}
+                    alt={p.altText ?? p.title ?? "Ảnh"}
+                    className={`h-full w-full object-cover transition-transform duration-200 ${
+                      !selectMode ? "group-hover:scale-[1.03]" : ""
+                    }`}
+                    draggable={false}
+                  />
+                  <div className="absolute left-2 top-2 pointer-events-none">
                     <Badge color={p.status === "PUBLISHED" ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"}>
                       {p.status === "PUBLISHED" ? "Đã đăng" : "Bản nháp"}
                     </Badge>
                   </div>
-                  <button
-                    type="button"
-                    role="checkbox"
-                    aria-checked={selected.has(p.id)}
-                    aria-label={selected.has(p.id) ? "Bỏ chọn ảnh" : "Chọn ảnh"}
-                    onClick={() => toggleSelect(p.id)}
-                    className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md border text-xs font-bold transition-colors ${
-                      selected.has(p.id)
-                        ? "border-green-600 bg-green-600 text-white"
-                        : "border-gray-300 bg-white/80 text-transparent hover:border-green-500"
-                    }`}
-                  >
-                    ✓
-                  </button>
+                  {selectMode && (
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={isSelected}
+                      aria-label={isSelected ? "Bỏ chọn ảnh" : "Chọn ảnh"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelect(p.id);
+                      }}
+                      className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md border text-xs font-bold transition-colors ${
+                        isSelected
+                          ? "border-green-600 bg-green-600 text-white"
+                          : "border-gray-300 bg-white/80 text-transparent hover:border-green-500"
+                      }`}
+                    >
+                      ✓
+                    </button>
+                  )}
                   {p.isFeatured && (
-                    <div className="absolute right-2 top-9">
+                    <div className={`absolute right-2 ${selectMode ? "top-9" : "top-2"} pointer-events-none`}>
                       <Badge color="bg-green-100 text-green-700">Nổi bật</Badge>
                     </div>
                   )}
-                  {selected.has(p.id) && (
+                  {selectMode && isSelected && (
                     <div aria-hidden="true" className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-green-500" />
                   )}
                 </div>
@@ -657,6 +722,8 @@ export function AdminPhotosPage() {
                       draggable={!savingOrder && catFilter == null}
                       onDragStart={(e) => startDrag(e, p)}
                       onDragEnd={endDrag}
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
                       title="Kéo để sắp xếp"
                       className="ml-auto inline-flex cursor-grab items-center justify-center rounded-md px-1.5 py-1 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-500 active:cursor-grabbing"
                     >
@@ -667,23 +734,24 @@ export function AdminPhotosPage() {
                       </svg>
                     </span>
                   </p>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => setEditing(p)}>
+                  <div className="mt-3 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={(e) => { e.stopPropagation(); setEditing(p); }}>
                       Sửa
                     </Btn>
                     {p.status === "DRAFT" ? (
-                      <Btn variant="success" className="px-2.5 py-1 text-xs" onClick={() => act(() => publishPhoto(token!, p.id), "Xuất bản thất bại")}>
+                      <Btn variant="success" className="px-2.5 py-1 text-xs" onClick={(e) => { e.stopPropagation(); act(() => publishPhoto(token!, p.id), "Xuất bản thất bại"); }}>
                         Xuất bản
                       </Btn>
                     ) : (
-                      <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => act(() => unpublishPhoto(token!, p.id), "Ẩn ảnh thất bại")}>
+                      <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={(e) => { e.stopPropagation(); act(() => unpublishPhoto(token!, p.id), "Ẩn ảnh thất bại"); }}>
                         Ẩn
                       </Btn>
                     )}
                     <Btn
                       variant="danger"
                       className="px-2.5 py-1 text-xs"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (window.confirm(`Xóa ảnh "${p.title ?? p.id}"? Hành động này không thể hoàn tác.`))
                           act(() => deletePhoto(token!, p.id), "Xóa ảnh thất bại");
                       }}
@@ -693,7 +761,8 @@ export function AdminPhotosPage() {
                   </div>
                 </div>
               </article>
-            ))}
+            );
+            })}
           </div>
         )}
       </Card>
@@ -738,6 +807,15 @@ export function AdminPhotosPage() {
           busy={bulkBusy}
           onClose={() => setBulkOpen(false)}
           onApply={applyBulk}
+        />
+      )}
+
+      {zoomedPhoto && (
+        <PhotoZoomModal
+          photo={zoomedPhoto}
+          onClose={() => setZoomedPhoto(null)}
+          onPrev={prevZoomedPhoto ? () => setZoomedPhoto(prevZoomedPhoto) : undefined}
+          onNext={nextZoomedPhoto ? () => setZoomedPhoto(nextZoomedPhoto) : undefined}
         />
       )}
     </div>
@@ -967,5 +1045,93 @@ function EditPhotoModal({
         />
       )}
     </Modal>
+  );
+}
+
+function PhotoZoomModal({
+  photo,
+  onClose,
+  onPrev,
+  onNext,
+}: {
+  photo: Photo;
+  onClose: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft" && onPrev) onPrev();
+      else if (e.key === "ArrowRight" && onNext) onNext();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, onPrev, onNext]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative flex max-h-[92vh] max-w-[95vw] flex-col items-center justify-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Đóng phóng to"
+          className="absolute -top-10 right-0 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/40"
+        >
+          ✕
+        </button>
+
+        {onPrev && (
+          <button
+            type="button"
+            onClick={onPrev}
+            aria-label="Ảnh trước"
+            className="absolute -left-12 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-xl font-bold text-white transition hover:bg-white/40 md:-left-16"
+          >
+            ‹
+          </button>
+        )}
+
+        {onNext && (
+          <button
+            type="button"
+            onClick={onNext}
+            aria-label="Ảnh tiếp theo"
+            className="absolute -right-12 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-xl font-bold text-white transition hover:bg-white/40 md:-right-16"
+          >
+            ›
+          </button>
+        )}
+
+        <div className="overflow-hidden rounded-xl shadow-2xl">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Full-size preview in Admin */}
+          <img
+            src={photo.imageUrl}
+            alt={photo.altText ?? photo.title ?? "Ảnh"}
+            className="max-h-[82vh] max-w-[90vw] object-contain"
+          />
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-white/80">
+          <p className="font-semibold text-sm text-white">{photo.title || "(không tiêu đề)"}</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {photo.categories.map((c) => (
+              <span key={c.id} className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs text-white">
+                {categoryLabel(c)}
+              </span>
+            ))}
+            <span className="ml-2 text-white/60">Thứ tự: {photo.sortOrder}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -84,6 +84,7 @@ export function describeApiError(err: unknown): string {
       400: "Dữ liệu không hợp lệ",
       401: "Phiên đăng nhập đã hết hạn — vui lòng đăng nhập lại",
       403: "Bạn không có quyền thực hiện thao tác này",
+      409: "Xung đột dữ liệu hoặc lịch chụp đã được đặt",
       413: "Ảnh hoặc tổng dung lượng tải lên vượt quá giới hạn",
       502: "Không thể tải ảnh lên bộ nhớ ảnh",
       503: "Không thể tải ảnh lên bộ nhớ ảnh",

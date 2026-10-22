@@ -21,7 +21,7 @@ export function DataFetchError({
   return (
     <div
       role="alert"
-      className="flex flex-col items-center gap-4 rounded-[14px] border border-dark-12 bg-dark-08 px-6 py-12 text-center"
+      className="flex flex-col items-center gap-4 rounded-[14px] bg-dark-08 px-6 py-12 text-center"
     >
       <p className="font-semibold text-lg text-absolutewhite">{message}</p>
       <p className="max-w-md text-sm leading-7 text-grey-50">
@@ -31,7 +31,7 @@ export function DataFetchError({
         type="button"
         disabled={pending}
         onClick={() => startTransition(() => router.refresh())}
-        className="rounded-[10px] bg-purple-55 px-6 py-2.5 font-medium text-sm text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-transform hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-[10px] bg-brand-55 px-6 py-2.5 font-medium text-sm text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-transform hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? "Đang tải…" : "Thử lại"}
       </button>

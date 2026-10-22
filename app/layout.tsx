@@ -23,6 +23,11 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "Bấu Graphy",
   description: "Bấu Graphy — portfolio and booking",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

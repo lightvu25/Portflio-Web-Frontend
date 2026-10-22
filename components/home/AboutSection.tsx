@@ -9,6 +9,9 @@ const cardTitle =
 const socialBtn =
   "inline-flex h-10 w-10 items-center justify-center rounded-full bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 hover:text-absolutewhite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55";
 
+const DEFAULT_BIO =
+  "Muốn tìm thợ chụp đẹp thì có rất nhiều, muốn tìm thợ đẹp zai, chụp đẹp thì hãy tìm đến anh";
+
 /**
  * About — matches the reference: eyebrow + big title + "Xem bộ sưu tập" CTA on top,
  * portrait image left, Introduction and Contact Information cards right.
@@ -19,7 +22,7 @@ export function AboutSection({ site }: { site: SiteSettings | null }) {
   // null when no eligible photo exists.
   const portrait = site?.aboutPhoto ?? null;
   const name = site?.photographerName ?? "Bấu Chụp Choẹt";
-  const bio = site?.bio?.trim() ? site.bio.trim() : null;
+  const bio = site?.bio?.trim() ? site.bio.trim() : DEFAULT_BIO;
   const experience = site?.experience?.trim() ? site.experience.trim() : null;
 
   // Same contact channels as the site footer (shared source: lib contact.tsx).
@@ -80,15 +83,9 @@ export function AboutSection({ site }: { site: SiteSettings | null }) {
               <h3 className={cardTitle}>
                 <span aria-hidden="true" className="text-brand-55">✦</span> Giới thiệu
               </h3>
-              {bio ? (
-                <p className="mt-4 whitespace-pre-line text-sm leading-7 text-grey-50">
-                  {bio}
-                </p>
-              ) : (
-                <p className="mt-4 text-sm leading-7 text-grey-40">
-                  Thông tin giới thiệu đang được cập nhật.
-                </p>
-              )}
+              <p className="mt-4 whitespace-pre-line text-sm leading-7 text-grey-50">
+                {bio}
+              </p>
               {experience && (
                 <p className="mt-3 font-medium text-xs font-medium uppercase tracking-[0.12em] text-brand-90">
                   {experience}

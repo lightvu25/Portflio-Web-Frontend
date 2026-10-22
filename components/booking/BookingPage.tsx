@@ -4,6 +4,11 @@ import Script from "next/script";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Reveal } from "@/components/shared/Reveal";
+import {
+  CopyIcon,
+  FacebookIcon,
+  InstagramIcon,
+} from "@/components/shared/contact";
 import { getAvailability } from "@/lib/api/availability";
 import { createBooking } from "@/lib/api/bookings";
 import {
@@ -25,6 +30,8 @@ import type { Booking, Slot } from "@/types/booking";
 
 /** NODE_ENV is inlined at build time — production builds can never bypass. */
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+const PHONE_10_DIGITS_REGEX = /^\d{10}$/;
 
 declare global {
   interface Window {
@@ -118,7 +125,14 @@ function BookingForm({
     getAvailability(date, date)
       .then((list) => {
         if (!cancelled && list[0]) {
-          setAvailabilityMap((m) => ({ ...m, [date]: list[0] }));
+          const avail = list[0];
+          setAvailabilityMap((m) => ({ ...m, [date]: avail }));
+          // Auto-switch to open slot if one is taken
+          if (avail.morning !== "AVAILABLE" && avail.afternoon === "AVAILABLE") {
+            setSlot("AFTERNOON");
+          } else if (avail.afternoon !== "AVAILABLE" && avail.morning === "AVAILABLE") {
+            setSlot("MORNING");
+          }
         }
       })
       .catch(() => {});
@@ -136,8 +150,25 @@ function BookingForm({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selected || !date || !name.trim() || !phone.trim() || !address.trim()) {
+    const normalizedPhone = phone.trim().replace(/\s+/g, "");
+    if (
+      !selected ||
+      !date ||
+      !name.trim() ||
+      !normalizedPhone ||
+      !address.trim()
+    ) {
       setErrorMsg("Vui lòng điền đầy đủ thông tin bắt buộc.");
+      setState("error");
+      return;
+    }
+    if (!PHONE_10_DIGITS_REGEX.test(normalizedPhone)) {
+      setErrorMsg("Số điện thoại không hợp lệ — vui lòng nhập đúng 10 chữ số.");
+      setState("error");
+      return;
+    }
+    if (isFullDay && fullDayTaken) {
+      setErrorMsg("Ngày này đã kín lịch cả ngày — vui lòng chọn ngày khác.");
       setState("error");
       return;
     }
@@ -166,7 +197,7 @@ function BookingForm({
       const booking = await createBooking({
         packageId: selected.id,
         customerName: name.trim(),
-        phone: phone.trim(),
+        phone: normalizedPhone,
         instagram: instagram.trim() || undefined,
         bookingDate: date,
         slot: isFullDay ? undefined : slot,
@@ -177,6 +208,14 @@ function BookingForm({
       setCreatedBooking(booking);
       setCopyState("idle");
       setState("sent");
+      // Invalidate and reload live availability for this date
+      getAvailability(date, date)
+        .then((list) => {
+          if (list[0]) {
+            setAvailabilityMap((m) => ({ ...m, [date]: list[0] }));
+          }
+        })
+        .catch(() => {});
     } catch (err) {
       setErrorMsg(
         err instanceof Error
@@ -185,6 +224,16 @@ function BookingForm({
       );
       setState("error");
       resetTurnstile();
+      // Invalidate and reload availability to sync latest slot status
+      if (date) {
+        getAvailability(date, date)
+          .then((list) => {
+            if (list[0]) {
+              setAvailabilityMap((m) => ({ ...m, [date]: list[0] }));
+            }
+          })
+          .catch(() => {});
+      }
     }
   };
 
@@ -235,7 +284,7 @@ function BookingForm({
 
           {state === "sent" && createdBooking && selected ? (
             <Reveal from="up">
-              <div className="mt-10 space-y-6 rounded-[14px] border border-dark-12 bg-dark-08 p-6 md:p-8">
+              <div className="mt-10 space-y-6 rounded-[14px] bg-dark-08 p-6 md:p-8">
                 <div className="border-b border-dark-12 pb-5">
                   <span className="inline-flex items-center rounded-full bg-brand-55/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-brand-55">
                     {bookingStatusLabel[createdBooking.status]} · Chưa thanh toán cọc
@@ -258,7 +307,7 @@ function BookingForm({
                 </div>
 
                 {/* Summary grid */}
-                <dl className="grid gap-4 rounded-[12px] border border-dark-12 bg-dark-06 p-5 text-sm sm:grid-cols-2">
+                <dl className="grid gap-4 rounded-[12px] bg-dark-06 p-5 text-sm sm:grid-cols-2">
                   <div>
                     <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
                       Mã đặt lịch
@@ -316,65 +365,69 @@ function BookingForm({
 
                 {/* Copyable message + social contact buttons */}
                 <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label
-                      htmlFor="booking-copy-message"
+                  <div className="flex items-center justify-between gap-3">
+                    <span
+                      id="booking-copy-message-label"
                       className="font-medium text-xs font-medium uppercase tracking-[0.12em] text-grey-50"
                     >
                       Tin nhắn tóm tắt để gửi cho Bấu
-                    </label>
-                    {copyState === "copied" && (
-                      <span
-                        role="status"
-                        className="text-xs font-semibold text-brand-55"
+                    </span>
+                    <div className="flex items-center gap-2.5">
+                      {copyState === "copied" && (
+                        <span
+                          role="status"
+                          className="text-xs font-semibold text-brand-55"
+                        >
+                          Đã sao chép
+                        </span>
+                      )}
+                      {copyState === "failed" && (
+                        <span role="alert" className="text-xs text-red-600">
+                          Hãy bôi đen và nhấn Ctrl+C
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleCopyMessage}
+                        aria-label="Sao chép tin nhắn"
+                        title="Sao chép tin nhắn"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-brand-55 text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-105 hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                       >
-                        ✓ Đã sao chép tin nhắn vào bộ nhớ tạm
-                      </span>
-                    )}
-                    {copyState === "failed" && (
-                      <span role="alert" className="text-xs text-red-600">
-                        Trình duyệt chặn sao chép tự động — bạn hãy bôi đen ô bên dưới và nhấn Ctrl+C / Cmd+C.
-                      </span>
-                    )}
+                        <CopyIcon size={18} />
+                      </button>
+                    </div>
                   </div>
-                  <textarea
-                    id="booking-copy-message"
-                    readOnly
-                    rows={10}
-                    value={copyMessage}
-                    onFocus={(e) => e.currentTarget.select()}
-                    className="w-full rounded-[10px] border border-dark-12 bg-dark-06 p-4 font-mono text-xs leading-6 text-absolutewhite focus:outline-none focus:ring-2 focus:ring-brand-55"
-                  />
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleCopyMessage}
-                      className="inline-flex items-center justify-center rounded-[10px] bg-brand-55 px-5 py-3 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-colors hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
-                    >
-                      {copyState === "copied"
-                        ? "Sao chép lại tin nhắn"
-                        : "Sao chép tin nhắn"}
-                    </button>
+
+                  <div
+                    role="region"
+                    aria-labelledby="booking-copy-message-label"
+                    className="w-full select-all whitespace-pre-wrap rounded-[10px] bg-dark-06 p-4 font-mono text-xs leading-6 text-absolutewhite"
+                  >
+                    {copyMessage}
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-1">
                     <a
                       href={SOCIAL_CONTACT_LINKS.facebook}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-[10px] border border-dark-12 bg-dark-06 px-5 py-3 font-medium text-sm font-medium text-absolutewhite transition-colors hover:bg-dark-15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
+                      aria-label="Mở Facebook"
+                      title="Mở Facebook"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 hover:text-absolutewhite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                     >
-                      Mở Facebook ↗
+                      <FacebookIcon size={18} />
                     </a>
                     <a
                       href={SOCIAL_CONTACT_LINKS.instagram}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-[10px] border border-dark-12 bg-dark-06 px-5 py-3 font-medium text-sm font-medium text-absolutewhite transition-colors hover:bg-dark-15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
+                      aria-label="Mở Instagram"
+                      title="Mở Instagram"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 hover:text-absolutewhite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                     >
-                      Mở Instagram ↗
+                      <InstagramIcon size={18} />
                     </a>
                   </div>
-                  <p className="text-xs leading-5 text-grey-50">
-                    Sau khi bấm <strong>Sao chép tin nhắn</strong>, bạn có thể mở Facebook hoặc Instagram (hoặc dán trực tiếp qua Zalo cá nhân của Bấu) để gửi thông tin xác nhận lịch nhanh nhất.
-                  </p>
                 </div>
               </div>
             </Reveal>
@@ -396,8 +449,8 @@ function BookingForm({
                           aria-pressed={pkgId === p.id}
                           className={`rounded-[12px] p-4 text-left transition-colors ${
                             pkgId === p.id
-                              ? "border border-brand-55 bg-brand-55/15"
-                              : "border border-transparent bg-dark-08 hover:bg-dark-15"
+                              ? "bg-brand-55/15"
+                              : "bg-dark-08 hover:bg-dark-15"
                           }`}
                         >
                           <p className="font-semibold text-sm font-semibold text-absolutewhite">
@@ -432,10 +485,10 @@ function BookingForm({
                     <span className={label}>Buổi chụp</span>
                     {isFullDay ? (
                       <p
-                        className={`rounded-[10px] border px-4 py-3 text-sm ${
+                        className={`rounded-[10px] px-4 py-3 text-sm ${
                           fullDayTaken
-                            ? "border-red-500/40 bg-red-500/10 text-red-700"
-                            : "border-dark-12 bg-dark-06 text-grey-50"
+                            ? "bg-red-500/10 text-red-700"
+                            : "bg-dark-08 text-grey-50"
                         }`}
                       >
                         {fullDayTaken
@@ -457,7 +510,7 @@ function BookingForm({
                                 taken
                                   ? "cursor-not-allowed bg-dark-08 text-grey-40 line-through"
                                   : slot === s
-                                    ? "border border-brand-55 bg-brand-55/15 text-absolutewhite"
+                                    ? "bg-brand-55/15 text-absolutewhite"
                                     : "bg-dark-08 text-grey-70 hover:bg-dark-15 hover:text-absolutewhite"
                               }`}
                             >
@@ -493,9 +546,14 @@ function BookingForm({
                     <input
                       id="customer-phone"
                       type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
+                      pattern="[0-9]{10}"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="09xx xxx xxx"
+                      onChange={(e) =>
+                        setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+                      }
+                      placeholder="Nhập 10 chữ số (09xxxxxxxx)"
                       className={input}
                     />
                   </div>

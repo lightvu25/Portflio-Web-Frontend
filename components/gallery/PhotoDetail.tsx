@@ -43,7 +43,7 @@ export function PhotoDetail({
     <section className="flex-1">
       <div className="mx-auto grid max-w-[1400px] gap-8 px-5 py-10 md:px-10 lg:grid-cols-[3fr_2fr]">
         {/* Image + navigation */}
-        <div className="relative aspect-[4/3] overflow-hidden rounded-[14px] border border-dark-12 bg-dark-08 lg:aspect-auto lg:min-h-[70vh]">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-[14px] bg-dark-08 lg:aspect-auto lg:min-h-[70vh]">
           <Image
             src={photo.imageUrl}
             alt={photo.altText ?? photo.title ?? "Ảnh"}

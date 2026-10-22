@@ -65,7 +65,7 @@ export function GalleryGrid({
             key={p.id}
             href={`/gallery/${p.id}`}
             aria-label={p.altText ?? p.title ?? "Xem ảnh"}
-            className="group relative mb-4 block break-inside-avoid overflow-hidden rounded-[14px] border border-dark-12 bg-dark-08"
+            className="group relative mb-4 block break-inside-avoid overflow-hidden rounded-[14px] bg-dark-08"
           >
             <div className={`relative w-full ${ratios[i % ratios.length]}`}>
               <Image

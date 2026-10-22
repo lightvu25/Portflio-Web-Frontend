@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Photo } from "@/types/photo";
 
 const tile =
-  "group relative block overflow-hidden rounded-[14px] border border-dark-12 bg-dark-08";
+  "group relative block overflow-hidden rounded-[14px] bg-dark-08";
 
 function Tile({ photo, className, sizes, priority = false }: { photo?: Photo; className?: string; sizes: string; priority?: boolean }) {
   if (!photo) return null;

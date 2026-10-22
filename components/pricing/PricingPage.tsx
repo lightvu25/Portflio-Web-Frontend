@@ -118,10 +118,10 @@ export function PricingPage({
                   type="button"
                   onClick={() => setGroup(g.size)}
                   aria-pressed={active}
-                  className={`group overflow-hidden rounded-[14px] border bg-dark-08 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 ${
+                  className={`group overflow-hidden rounded-[14px] text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 ${
                     active
-                      ? "border-brand-55 ring-2 ring-brand-55/40"
-                      : "border-dark-12 hover:border-dark-25"
+                      ? "bg-brand-55/15"
+                      : "bg-dark-08 hover:bg-dark-15"
                   }`}
                 >
                   <div className="relative aspect-[16/10] w-full overflow-hidden bg-dark-12">
@@ -171,7 +171,7 @@ export function PricingPage({
             const img = packageImage(p, groupCovers, fallbackImage ?? undefined);
             return (
             <Reveal key={p.id} delay={i * 90} from="up">
-            <article className="flex h-full flex-col overflow-hidden rounded-[14px] border border-dark-12 bg-dark-08 transition-colors hover:border-dark-20">
+            <article className="flex h-full flex-col overflow-hidden rounded-[14px] bg-dark-08">
               {img ? (
                 <div className="relative aspect-[4/3] w-full">
                   <Image
@@ -267,7 +267,7 @@ export function PricingPage({
             {SURCHARGES.map((item) => (
               <div
                 key={item.title}
-                className="rounded-[14px] border border-brand-80/40 bg-brand-99 p-5"
+                className="rounded-[14px] bg-dark-08 p-5"
               >
                 <p className="font-semibold text-sm font-semibold text-absolutewhite">
                   {item.title}

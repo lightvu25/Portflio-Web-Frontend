@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/labels";
 import type { Feedback } from "@/types/feedback";
 
 const input =
-  "w-full rounded-[10px] bg-dark-08 px-4 py-3 text-sm text-absolutewhite placeholder:text-grey-40 focus:outline-none focus:ring-2 focus:ring-brand-55/50";
+  "w-full rounded-[10px] bg-dark-06 px-4 py-3 text-sm text-absolutewhite placeholder:text-grey-40 focus:outline-none focus:ring-2 focus:ring-brand-55/50";
 
 /** Only render <Image /> when imageUrl is a non-empty valid http(s) URL. */
 function hasValidImageUrl(url: string | null | undefined): url is string {
@@ -35,7 +35,7 @@ function FeedbackCard({ t, featured = false }: { t: Feedback; featured?: boolean
   if (featured) {
     return (
       <figure
-        className={`grid overflow-hidden rounded-[14px] border border-dark-12 bg-dark-08 ${
+        className={`grid overflow-hidden rounded-[14px] bg-dark-08 ${
           showImage ? "md:grid-cols-2" : ""
         }`}
       >
@@ -63,7 +63,7 @@ function FeedbackCard({ t, featured = false }: { t: Feedback; featured?: boolean
   }
 
   return (
-    <figure className="flex h-full flex-col overflow-hidden rounded-[14px] border border-dark-12 bg-dark-08">
+    <figure className="flex h-full flex-col overflow-hidden rounded-[14px] bg-dark-08">
       {showImage && (
         <div className="relative aspect-[4/3]">
           <Image
@@ -186,12 +186,12 @@ export function FeedbackPage({ feedback }: { feedback: Feedback[] }) {
                 className={`${input} resize-none overflow-hidden`}
               />
               {state === "sent" && (
-                <p className="rounded-[10px] border border-brand-80/40 bg-brand-99 px-4 py-3 text-xs font-medium text-brand-90">
+                <p className="rounded-[10px] bg-brand-99 px-4 py-3 text-xs font-medium text-brand-90">
                   Đã gửi cảm nhận — cảm ơn bạn!
                 </p>
               )}
               {state === "error" && (
-                <p className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
+                <p className="rounded-[10px] bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
                   Gửi thất bại — vui lòng thử lại.
                 </p>
               )}
