@@ -33,7 +33,7 @@ export async function HomePage() {
       <Reveal>
         <HeroSection site={site} />
       </Reveal>
-      <PhotographyMarquee categories={categories.map((c) => c.name)} />
+      <PhotographyMarquee availableCategories={categories.map((c) => c.name)} />
       {/* Photo-driven sections: on fetch failure show a single retry block
           instead of empty gaps; about/services still render their own content. */}
       {photos.ok ? (

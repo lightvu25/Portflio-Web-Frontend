@@ -49,9 +49,9 @@ export function GalleryGrid({
             role="tab"
             aria-selected={active === c.id}
             onClick={() => setActive(c.id)}
-            className={`rounded-[10px] px-4 py-2 font-medium text-sm font-medium transition-colors ${
+            className={`rounded-[10px] px-4 py-2 font-medium text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 ${
               active === c.id
-                ? "bg-purple-55/15 text-purple-55"
+                ? "bg-brand-55/15 text-brand-55"
                 : "bg-dark-08 text-grey-70 hover:bg-dark-15 hover:text-absolutewhite"
             }`}
           >

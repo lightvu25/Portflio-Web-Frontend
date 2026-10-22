@@ -80,7 +80,7 @@ export function PhotoDetail({
               ← Quay lại bộ sưu tập
             </Link>
             {category && (
-              <p className="mt-6 font-medium text-sm font-medium uppercase tracking-[0.18em] text-purple-55">
+              <p className="mt-6 font-medium text-sm font-medium uppercase tracking-[0.18em] text-brand-55">
                 {category}
               </p>
             )}
@@ -106,7 +106,7 @@ export function PhotoDetail({
                 <p className="mt-1 text-sm text-grey-50">
                   {sessionTypeLabel[pkg.sessionType]} · {pkg.groupSize} người
                 </p>
-                <p className="mt-3 font-semibold text-2xl font-semibold text-purple-55">
+                <p className="mt-3 font-semibold text-2xl font-semibold text-brand-55">
                   {formatVnd(pkg.price)}
                 </p>
                 {pkg.description && (
@@ -116,7 +116,7 @@ export function PhotoDetail({
                 )}
                 <Link
                   href={`/booking?package=${pkg.id}`}
-                  className="mt-6 block rounded-[10px] bg-purple-55 py-3 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-transform hover:scale-[1.02]"
+                  className="mt-6 block rounded-[10px] bg-brand-55 py-3 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                 >
                   Đặt gói này
                 </Link>
@@ -128,9 +128,9 @@ export function PhotoDetail({
                 </p>
                 <Link
                   href="/booking"
-                  className="mt-6 block rounded-[10px] bg-purple-55 py-3 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-transform hover:scale-[1.02]"
+                  className="mt-6 block rounded-[10px] bg-brand-55 py-3 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                 >
-                  Đặt lịch chụp
+                  Đặt lịch ngay
                 </Link>
               </>
             )}

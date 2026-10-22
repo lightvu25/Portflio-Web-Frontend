@@ -42,7 +42,7 @@ export function SiteFooter() {
     <footer className="border-t border-dark-12">
       {/* Scrolling category band */}
       <div className="border-b border-dark-12 bg-dark-06">
-        <CategoryMarquee categories={categories.map((c) => c.name)} />
+        <CategoryMarquee availableCategories={categories.map((c) => c.name)} />
       </div>
 
       {/* Main footer */}
@@ -54,12 +54,12 @@ export function SiteFooter() {
           </p>
           <div className="mt-4 flex items-center gap-4">
             <p className="font-semibold text-4xl font-semibold leading-tight text-absolutewhite md:text-5xl">
-              CÙNG NHAU
+              ĐẶT LỊCH
             </p>
-            <CtaArrowLink />
+            <CtaArrowLink label="Đặt lịch ngay" />
           </div>
           <p className="mt-1 font-semibold text-4xl font-semibold leading-tight text-absolutewhite md:text-5xl">
-            TẠO KHOẢNH KHẮC
+            NGAY
           </p>
         </div>
 
@@ -76,7 +76,7 @@ export function SiteFooter() {
           <div>
             <h3 className={colTitle}>Đặt lịch</h3>
             <ul className="mt-4 space-y-2.5">
-              <li><Link href="/booking" className={linkCls}>Đặt lịch chụp</Link></li>
+              <li><Link href="/booking" className={linkCls}>Đặt lịch ngay</Link></li>
               <li><Link href="/pricing" className={linkCls}>Bảng giá</Link></li>
               <li><Link href="/feedback" className={linkCls}>Gửi cảm nhận</Link></li>
             </ul>
@@ -108,9 +108,9 @@ export function SiteFooter() {
       <div className="border-t border-dark-12">
         <div className="mx-auto flex max-w-[1400px] flex-col items-center gap-4 px-5 py-6 md:flex-row md:justify-between md:px-10">
           <div className="flex gap-6">
-            <Link href="#" className={`${linkCls} text-xs`}>Điều khoản</Link>
+            <Link href="/pricing" className={`${linkCls} text-xs`}>Dịch vụ & Quyền lợi</Link>
             <span aria-hidden="true" className="text-dark-20">|</span>
-            <Link href="#" className={`${linkCls} text-xs`}>Bảo mật</Link>
+            <Link href="/booking" className={`${linkCls} text-xs`}>Đặt lịch</Link>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
             <a href={CONTACT.instagram} target="_blank" rel="noreferrer" aria-label="Instagram" className={socialBtn}>

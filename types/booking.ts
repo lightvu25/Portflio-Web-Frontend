@@ -26,6 +26,8 @@ export interface BookingRequest {
   /** Required for HALF_DAY packages; omit for FULL_DAY packages. */
   slot?: Slot;
   address: string;
+  /** Optional customer note for the photographer ("Lưu ý với thợ"). */
+  note?: string;
   turnstileToken: string;
 }
 
@@ -43,6 +45,7 @@ export interface Booking {
   phone: string;
   instagram: string | null;
   address: string;
+  note: string | null;
   status: BookingStatus;
   expiresAt: string | null;
   createdAt: string;
@@ -58,6 +61,7 @@ export interface BookingStatusResponse {
   slots: BookingSlotInfo[];
   expiresAt: string | null;
   payment: BookingPaymentInfo | null;
+  note?: string | null;
 }
 
 export interface BookingSlotInfo {

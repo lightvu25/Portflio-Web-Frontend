@@ -26,14 +26,25 @@
   --grey-95: rgba(20, 21, 25, 1);
   --grey-97: rgba(15, 16, 19, 1);
   --grey-99: rgba(12, 12, 14, 1);
-  --purple-55: rgba(34, 197, 94, 1);
-  --purple-60: rgba(46, 190, 111, 1);
-  --purple-70: rgba(95, 217, 139, 1);
-  --purple-80: rgba(134, 239, 172, 1);
-  --purple-90: rgba(74, 222, 128, 1);
-  --purple-95: rgba(187, 247, 208, 1);
-  --purple-97: rgba(220, 252, 231, 1);
-  --purple-99: rgba(240, 253, 244, 1);
+  /* Brand palette (#6B8E5A olive/sage green).
+     Legacy --purple-* tokens alias --brand-* so there is a single source of truth. */
+  --brand-55: #6B8E5A;
+  --brand-60: #5A7A4B;
+  --brand-70: #7E9F6D;
+  --brand-80: #A3BE95;
+  --brand-90: #4E6B40;
+  --brand-95: #D5E2CE;
+  --brand-97: #EBF1E7;
+  --brand-99: #F4F7F2;
+
+  --purple-55: var(--brand-55);
+  --purple-60: var(--brand-60);
+  --purple-70: var(--brand-70);
+  --purple-80: var(--brand-80);
+  --purple-90: var(--brand-90);
+  --purple-95: var(--brand-95);
+  --purple-97: var(--brand-97);
+  --purple-99: var(--brand-99);
 }
 
 @theme inline {
@@ -60,6 +71,14 @@
   --color-grey-95: var(--grey-95);
   --color-grey-97: var(--grey-97);
   --color-grey-99: var(--grey-99);
+  --color-brand-55: var(--brand-55);
+  --color-brand-60: var(--brand-60);
+  --color-brand-70: var(--brand-70);
+  --color-brand-80: var(--brand-80);
+  --color-brand-90: var(--brand-90);
+  --color-brand-95: var(--brand-95);
+  --color-brand-97: var(--brand-97);
+  --color-brand-99: var(--brand-99);
   --color-purple-55: var(--purple-55);
   --color-purple-60: var(--purple-60);
   --color-purple-70: var(--purple-70);

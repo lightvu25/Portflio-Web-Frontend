@@ -1,4 +1,9 @@
+import Image from "next/image";
 import type { Feedback } from "@/types/feedback";
+
+function hasValidImageUrl(url: string | null | undefined): url is string {
+  return typeof url === "string" && /^https?:\/\/\S+/i.test(url.trim());
+}
 
 /** Testimonials — published feedback from GET /api/feedback. */
 export function TestimonialsSection({ testimonials }: { testimonials: Feedback[] }) {
@@ -13,18 +18,35 @@ export function TestimonialsSection({ testimonials }: { testimonials: Feedback[]
           Khách hàng nói gì
         </h2>
         <div className="mt-10 grid gap-5 md:grid-cols-3">
-          {testimonials.map((t) => (
-            <figure key={t.id} className="flex flex-col rounded-[14px] border border-dark-12 bg-dark-08 p-6">
-              <blockquote className="flex-1 text-sm leading-7 text-grey-50">
-                “{t.content}”
-              </blockquote>
-              <figcaption className="mt-6 border-t border-dark-12 pt-4">
-                <p className="font-semibold text-sm font-semibold text-absolutewhite">
-                  {t.customerName}
-                </p>
-              </figcaption>
-            </figure>
-          ))}
+          {testimonials.map((t) => {
+            const showImage = hasValidImageUrl(t.imageUrl);
+            return (
+              <figure key={t.id} className="flex flex-col overflow-hidden rounded-[14px] border border-dark-12 bg-dark-08">
+                {showImage && (
+                  <div className="relative aspect-[4/3] w-full">
+                    <Image
+                      src={t.imageUrl!.trim()}
+                      alt={`Ảnh buổi chụp — ${t.customerName}`}
+                      fill
+                      quality={100}
+                      sizes="(min-width: 1024px) 440px, (min-width: 768px) 33vw, 100vw"
+                      className="object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex flex-1 flex-col p-6">
+                  <blockquote className="flex-1 text-sm leading-7 text-grey-50">
+                    “{t.content}”
+                  </blockquote>
+                  <figcaption className="mt-6 border-t border-dark-12 pt-4">
+                    <p className="font-semibold text-sm font-semibold text-absolutewhite">
+                      {t.customerName}
+                    </p>
+                  </figcaption>
+                </div>
+              </figure>
+            );
+          })}
         </div>
       </div>
     </section>

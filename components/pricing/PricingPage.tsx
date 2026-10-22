@@ -17,14 +17,31 @@ const SESSIONS = [
 const BENEFITS = [
   "Không giới hạn file chụp",
   "Thoải mái check ảnh",
-  "Nhận full file đã làm màu",
-  "Hậu kỳ chi tiết 15 ảnh",
+  "Full file đã căn chỉnh cơ bản",
+  "Hậu kỳ 10 ảnh chi tiết",
   "Lưu file 3 tháng",
   "Hỗ trợ hắt sáng",
   "Hỗ trợ súng bắn bong bóng",
   "Hỗ trợ đèn giả nắng",
   "Hỗ trợ đèn flash",
   "Hỗ trợ chụp phim nếu khách có sẵn máy",
+  "Staff hỗ trợ tính thêm phí",
+];
+
+const SURCHARGES = [
+  {
+    title: "Chụp kéo dài đến 19:00",
+    detail: "Phụ phí +300.000 VNĐ.",
+  },
+  {
+    title: "Chụp ngoại tỉnh",
+    detail: "Chỉ áp dụng cho gói Cả ngày.",
+  },
+  {
+    title: "Chi phí di chuyển",
+    detail:
+      "Giá gói chưa bao gồm chi phí di chuyển. Phí di chuyển được ước tính theo địa điểm chụp thực tế và sẽ được xác nhận trước khi chốt lịch.",
+  },
 ];
 
 /** The three customer groups — keyed by PricingPackage.groupSize. */
@@ -101,9 +118,9 @@ export function PricingPage({
                   type="button"
                   onClick={() => setGroup(g.size)}
                   aria-pressed={active}
-                  className={`group overflow-hidden rounded-[14px] border bg-dark-08 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-55 ${
+                  className={`group overflow-hidden rounded-[14px] border bg-dark-08 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 ${
                     active
-                      ? "border-purple-55 ring-2 ring-purple-55/40"
+                      ? "border-brand-55 ring-2 ring-brand-55/40"
                       : "border-dark-12 hover:border-dark-25"
                   }`}
                 >
@@ -119,7 +136,7 @@ export function PricingPage({
                       />
                     )}
                     {active && (
-                      <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-purple-55 text-white">
+                      <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-brand-55 text-white">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                           <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
@@ -135,7 +152,7 @@ export function PricingPage({
                     </div>
                     <span
                       aria-hidden="true"
-                      className={`shrink-0 text-sm transition-transform ${active ? "text-purple-55" : "text-grey-40 group-hover:translate-x-0.5"}`}
+                      className={`shrink-0 text-sm transition-transform ${active ? "text-brand-55" : "text-grey-40 group-hover:translate-x-0.5"}`}
                     >
                       →
                     </span>
@@ -170,13 +187,13 @@ export function PricingPage({
                 <div aria-hidden="true" className="aspect-[4/3] w-full bg-dark-12" />
               )}
               <div className="flex flex-1 flex-col p-6">
-              <p className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-purple-90">
+              <p className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-brand-90">
                 {sessionTypeLabel[p.sessionType]}
               </p>
               <h2 className="mt-3 font-semibold text-xl font-semibold text-absolutewhite">
                 {p.name}
               </h2>
-              <p className="mt-2 font-semibold text-2xl font-semibold text-purple-55">
+              <p className="mt-2 font-semibold text-2xl font-semibold text-brand-55">
                 {formatVnd(p.price)}
               </p>
               <p className="mt-1 text-xs text-grey-40">
@@ -189,7 +206,7 @@ export function PricingPage({
               )}
               <Link
                 href={`/booking?package=${p.id}`}
-                className="mt-6 block rounded-[10px] bg-purple-55 py-2.5 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-transform hover:scale-[1.02]"
+                className="mt-6 block rounded-[10px] bg-brand-55 py-2.5 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2"
               >
                 Đặt gói này
               </Link>
@@ -232,7 +249,7 @@ export function PricingPage({
           <div className="mt-4 grid gap-3 rounded-[14px] bg-dark-08 p-6 sm:grid-cols-2 lg:grid-cols-3">
             {BENEFITS.map((b) => (
               <p key={b} className="flex items-start gap-2.5 text-sm text-grey-70">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="mt-0.5 shrink-0 text-purple-55">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="mt-0.5 shrink-0 text-brand-55">
                   <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 {b}
@@ -241,11 +258,26 @@ export function PricingPage({
           </div>
         </div>
 
-        {/* Extra cost note */}
+        {/* Surcharges & conditions (separated from package prices) */}
         <div className="mx-auto max-w-[1400px] px-5 pb-16 md:px-10">
-          <p className="rounded-[14px] border border-purple-90/40 bg-purple-99 px-6 py-4 text-sm font-medium text-grey-80">
-            * Giá chưa bao gồm chi phí di chuyển.
-          </p>
+          <h2 className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
+            Phụ phí &amp; Lưu ý
+          </h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            {SURCHARGES.map((item) => (
+              <div
+                key={item.title}
+                className="rounded-[14px] border border-brand-80/40 bg-brand-99 p-5"
+              >
+                <p className="font-semibold text-sm font-semibold text-absolutewhite">
+                  {item.title}
+                </p>
+                <p className="mt-1.5 text-sm leading-6 text-grey-70">
+                  {item.detail}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
     </main>

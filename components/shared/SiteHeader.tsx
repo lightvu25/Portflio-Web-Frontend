@@ -44,8 +44,8 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-dark-12 bg-dark-03/95 backdrop-blur">
-      <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-4 md:px-10">
-        <Link href="/" className="font-semibold text-lg font-semibold tracking-[0.14em] text-absolutewhite">
+      <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-2 px-4 py-4 sm:px-5 md:px-10">
+        <Link href="/" className="truncate font-semibold text-base font-semibold tracking-[0.12em] text-absolutewhite sm:text-lg sm:tracking-[0.14em]">
           {BRAND}
         </Link>
 
@@ -70,7 +70,7 @@ export function SiteHeader() {
                 href={item.href}
                 data-active={active}
                 aria-current={active ? "page" : undefined}
-                className={`relative z-10 rounded-full px-4 py-2 font-medium text-sm transition-colors duration-200 ${
+                className={`relative z-10 rounded-full px-4 py-2 font-medium text-sm transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 ${
                   active ? "text-absolutewhite" : "text-grey-70 hover:text-absolutewhite"
                 }`}
               >
@@ -80,10 +80,10 @@ export function SiteHeader() {
           })}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <Link
             href="/booking"
-            className="hidden rounded-full bg-purple-55 px-6 py-3 font-medium text-sm text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-transform hover:scale-[1.03] md:inline-block"
+            className="inline-flex items-center justify-center rounded-full bg-brand-55 px-4 py-2 font-medium text-xs text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.03] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2 sm:px-5 sm:py-2.5 sm:text-sm md:px-6 md:py-3"
           >
             Liên hệ
           </Link>
@@ -93,7 +93,7 @@ export function SiteHeader() {
             aria-label="Toggle navigation"
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-dark-12 text-grey-80 md:hidden"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 md:hidden"
           >
             <span aria-hidden="true">{open ? "✕" : "☰"}</span>
           </button>
@@ -117,6 +117,13 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
+          <Link
+            href="/booking"
+            onClick={() => setOpen(false)}
+            className="mt-2 block rounded-[10px] bg-brand-55 px-4 py-2.5 text-center font-medium text-sm text-white transition-colors hover:bg-brand-60"
+          >
+            Đặt lịch ngay
+          </Link>
         </nav>
       )}
     </header>

@@ -1,11 +1,18 @@
 import { CategoryMarquee } from "@/components/shared/CategoryMarquee";
+import type { Category } from "@/types/category";
 
 /** Clickable auto-scrolling photography category band for the homepage. */
-export function PhotographyMarquee({ categories }: { categories: string[] }) {
-  if (categories.length === 0) return null;
+export function PhotographyMarquee({
+  categories,
+  availableCategories,
+}: {
+  categories?: readonly string[];
+  availableCategories?: ReadonlyArray<Category | string>;
+}) {
   return (
-    <section aria-label="Danh mục chụp ảnh" className="border-b border-dark-12 bg-dark-06">
-      <CategoryMarquee categories={categories} />
-    </section>
+    <CategoryMarquee
+      categories={categories}
+      availableCategories={availableCategories}
+    />
   );
 }

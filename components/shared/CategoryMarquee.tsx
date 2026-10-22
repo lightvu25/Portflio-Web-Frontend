@@ -1,88 +1,125 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { getCategories } from "@/lib/api/categories";
+import type { Category } from "@/types/category";
 
-function CategoryGroup({ names }: { names: string[] }) {
-  return (
-    <div data-group className="flex shrink-0 items-center gap-8 pr-8">
-      {names.map((label, i) => (
-        <span key={`${label}-${i}`} className="flex items-center gap-8 whitespace-nowrap">
-          <Link
-            href={`/gallery?category=${encodeURIComponent(label)}`}
-            className="font-medium text-base font-medium uppercase tracking-[0.14em] text-purple-90 transition-colors hover:text-purple-55 md:text-lg"
-          >
-            {label}
-          </Link>
-          <span aria-hidden="true" className="text-grey-40">✦</span>
-        </span>
-      ))}
-    </div>
-  );
+/**
+ * Confirmed customer-facing marquee categories from the owner's specification.
+ */
+export const MARQUEE_CATEGORIES: readonly string[] = [
+  "Kỉ yếu THCS",
+  "Kỉ yếu THPT",
+  "Tốt nghiệp đại học",
+  "Áo dài",
+  "Concept",
+];
+
+function normalizeCategoryText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
+}
+
+function resolveCategoryHref(
+  label: string,
+  available: ReadonlyArray<Category | string> | null,
+): string {
+  if (!available || available.length === 0) {
+    return `/gallery?category=${encodeURIComponent(label)}`;
+  }
+  const target = normalizeCategoryText(label);
+  const matched = available.find((item) => {
+    if (typeof item === "string") {
+      return normalizeCategoryText(item) === target;
+    }
+    const cName = normalizeCategoryText(item.name);
+    const cSlug = item.slug.toLowerCase().replace(/-/g, " ").trim();
+    return cName === target || cSlug === target;
+  });
+  if (matched) {
+    const matchedName = typeof matched === "string" ? matched : matched.name;
+    return `/gallery?category=${encodeURIComponent(matchedName)}`;
+  }
+  return "/gallery";
 }
 
 /**
- * Auto-scrolling category band. Renders enough identical copies of the
- * category sequence to always cover the viewport plus one group, then
- * translates the track by exactly one group width — a seamless loop with
- * no fixed pixel values (pauses on hover). Data-driven from backend
- * categories when not passed.
+ * Auto-scrolling photography category band — reused beneath the hero and
+ * above the footer. Each item links to `/gallery?category=<Name>` when a
+ * matching category exists in the backend, or `/gallery` otherwise so the
+ * visitor never lands on an accidental empty filter.
  */
-export function CategoryMarquee({ categories }: { categories?: string[] }) {
-  const [names, setNames] = useState<string[]>(categories ?? []);
-  const [copies, setCopies] = useState(2);
-  const trackRef = useRef<HTMLDivElement>(null);
+export function CategoryMarquee({
+  categories = MARQUEE_CATEGORIES,
+  availableCategories,
+  ariaLabel = "Danh mục nhiếp ảnh",
+}: {
+  categories?: readonly string[];
+  availableCategories?: ReadonlyArray<Category | string>;
+  ariaLabel?: string;
+}) {
+  const [fetchedCategories, setFetchedCategories] = useState<Category[] | null>(
+    null,
+  );
 
   useEffect(() => {
-    if (categories) return;
+    if (availableCategories) return;
     let cancelled = false;
     getCategories()
       .then((list) => {
-        if (!cancelled) setNames(list.map((c) => c.name));
+        if (!cancelled) setFetchedCategories(list);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [categories]);
+  }, [availableCategories]);
 
-  // Copies needed = ceil(viewport / groupWidth) + 1 (min 2), so the visible
-  // window is always covered through a full one-group shift.
-  useLayoutEffect(() => {
-    const track = trackRef.current;
-    const group = track?.querySelector<HTMLElement>("[data-group]");
-    const viewport = track?.parentElement;
-    if (!track || !group || !viewport) return;
-    const measure = () =>
-      setCopies(Math.max(2, Math.ceil(viewport.clientWidth / group.offsetWidth) + 1));
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(viewport);
-    ro.observe(group);
-    return () => ro.disconnect();
-  }, [names]);
+  const knownCategories = availableCategories ?? fetchedCategories;
+  const list = categories.length > 0 ? categories : MARQUEE_CATEGORIES;
+  // Repeat enough times that one copy is always wider than a 1920px viewport.
+  const track = Array.from({ length: 4 }, () => list).flat();
 
-  if (names.length === 0) return null;
+  const renderCopy = (copyIndex: number) => (
+    <ul
+      key={copyIndex}
+      aria-hidden={copyIndex > 0 ? true : undefined}
+      className="flex shrink-0 items-center gap-8"
+    >
+      {track.map((cat, i) => (
+        <li key={`${cat}-${i}`} className="flex shrink-0 items-center gap-8">
+          <span aria-hidden="true" className="text-brand-55">
+            ✦
+          </span>
+          <Link
+            href={resolveCategoryHref(cat, knownCategories)}
+            tabIndex={copyIndex > 0 ? -1 : undefined}
+            className="text-sm font-normal uppercase tracking-[0.14em] text-grey-80 transition-colors hover:text-brand-55"
+          >
+            {cat}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
-    <div className="group relative overflow-hidden py-5">
-      <div
-        ref={trackRef}
-        className="animate-marquee-track flex w-max [--duration:32s] group-hover:[animation-play-state:paused]"
-        style={{ "--copies": copies } as React.CSSProperties}
-      >
-        {Array.from({ length: copies }, (_, i) =>
-          i === 0 ? (
-            <CategoryGroup key={i} names={names} />
-          ) : (
-            <div key={i} aria-hidden="true" className="contents">
-              <CategoryGroup names={names} />
-            </div>
-          ),
-        )}
+    <div
+      aria-label={ariaLabel}
+      className="relative overflow-hidden border-y border-dark-12 bg-dark-06 py-4"
+    >
+      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-dark-06 to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-dark-06 to-transparent" />
+      <div className="animate-marquee flex w-max items-center gap-8">
+        {renderCopy(0)}
+        {renderCopy(1)}
       </div>
-      <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-dark-06 to-transparent" />
-      <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-dark-06 to-transparent" />
     </div>
   );
 }

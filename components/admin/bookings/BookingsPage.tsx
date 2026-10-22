@@ -91,14 +91,14 @@ export function AdminBookingsPage() {
         <EmptyState title="Chưa có booking" />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[960px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-left text-xs uppercase tracking-wide text-gray-400">
                 <th className="pb-3 pr-4 font-medium">Khách hàng</th>
                 <th className="pb-3 pr-4 font-medium">Liên hệ</th>
                 <th className="pb-3 pr-4 font-medium">Gói</th>
                 <th className="pb-3 pr-4 font-medium">Ngày / Buổi</th>
-                <th className="pb-3 pr-4 font-medium">Địa chỉ</th>
+                <th className="pb-3 pr-4 font-medium">Địa chỉ &amp; Lưu ý</th>
                 <th className="pb-3 pr-4 font-medium">Trạng thái</th>
                 <th className="pb-3 pr-4 font-medium">Tạo lúc</th>
                 <th className="pb-3 font-medium">Thao tác</th>
@@ -115,7 +115,7 @@ export function AdminBookingsPage() {
                     </td>
                     <td className="py-3 pr-4 text-gray-600">
                       <p>{b.phone}</p>
-                      {b.instagram && <p className="text-xs text-green-500">@{b.instagram.replace(/^@/, "")}</p>}
+                      {b.instagram && <p className="text-xs text-green-600">@{b.instagram.replace(/^@/, "")}</p>}
                     </td>
                     <td className="py-3 pr-4 text-gray-600">
                       {b.pricingPackage ? (
@@ -140,7 +140,14 @@ export function AdminBookingsPage() {
                         ))
                       )}
                     </td>
-                    <td className="max-w-[180px] py-3 pr-4 text-gray-600"><p className="truncate">{b.address}</p></td>
+                    <td className="max-w-[240px] py-3 pr-4 text-gray-600">
+                      <p className="break-words">{b.address}</p>
+                      {b.note && (
+                        <p className="mt-1 rounded bg-gray-50 px-2 py-1 text-xs text-gray-500">
+                          <span className="font-medium text-gray-700">Lưu ý:</span> {b.note}
+                        </p>
+                      )}
+                    </td>
                     <td className="py-3 pr-4">
                       <Badge color={bookingStatusColor[b.status]}>{bookingStatusLabel[b.status]}</Badge>
                     </td>

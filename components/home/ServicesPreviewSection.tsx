@@ -61,7 +61,7 @@ export function ServicesPreviewSection({ categories, photos }: { categories: Cat
               <h3 className="font-semibold text-2xl font-semibold uppercase text-absolutewhite md:text-3xl">
                 {category.name}
               </h3>
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-purple-55 text-white transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-55 text-white transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 17L17 7M17 7H9M17 7v8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </span>
             </Link>

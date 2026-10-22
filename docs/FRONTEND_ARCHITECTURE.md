@@ -1,97 +1,50 @@
-# Frontend Architecture
+# Frontend Architecture — Bấu Chụp Choẹt
 
-Next.js 16 (App Router) + TypeScript + Tailwind v4. Routes in `app/`,
-Figma-derived UI in `components/`, backend integration in `lib/api/`,
-domain types in `types/`.
+Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS v4.
 
-## Route layer — `app/`
+## Route Layer — `app/`
 
-Routes only. Pages compose section components; no API calls, no assets,
-no section JSX living inside `app/` (except `globals.css`, `favicon.ico`).
+Pages in `app/` are server components (with `export const revalidate = 60` on public data routes) that fetch live data via `lib/api/*` and compose presentation components from `components/`:
 
-```
+```text
 app/
-├── page.tsx                 # /  — public homepage (home sections)
-├── layout.tsx               # root layout + globals.css + metadata
-├── globals.css              # single styling entry (Tailwind v4 + Figma tokens/animations)
-├── gallery/page.tsx         # /gallery  — portfolio sections
-├── pricing/page.tsx         # /pricing  — services/pricing sections
-├── booking/page.tsx         # /booking  — placeholder
-├── booking/result/page.tsx  # /booking/result — placeholder
-├── feedback/page.tsx        # /feedback — placeholder
-└── admin/                   # /admin* — all placeholder pages
+├── page.tsx                 # / — Public homepage (getSiteSettings, getFeaturedPhotos, getPublishedPhotos, getCategories, getPublishedFeedback)
+├── layout.tsx               # Root layout, Be Vietnam Pro font, metadata
+├── globals.css              # Single styling entry (Tailwind v4 + brand color tokens --brand-55: #6B8E5A)
+├── gallery/
+│   ├── page.tsx             # /gallery — Filterable portfolio grid
+│   └── [id]/page.tsx        # /gallery/[id] — Photo detail + related pricing package
+├── pricing/page.tsx         # /pricing — Active packages, benefits, surcharges, FAQ
+├── booking/page.tsx         # /booking — Availability check, Turnstile, POST /api/bookings, copyable message
+├── booking/result/page.tsx  # /booking/result — Booking status lookup by code
+├── feedback/page.tsx        # /feedback — Published customer reviews + submission form
+└── admin/                   # /admin/* — JWT-protected admin dashboard routes
     ├── page.tsx
     ├── login/page.tsx
-    ├── photos|categories|bookings|payments|feedback|pricing|settings/page.tsx
+    └── photos|categories|bookings|payments|feedback|pricing|settings/page.tsx
 ```
 
-`/home` was consolidated into `/` (the old redirect was removed).
+## Component Layer — `components/`
 
-## Component layer — `components/`
+- **Active Public Components**:
+  - `components/shared/`: `SiteHeader.tsx`, `SiteFooter.tsx`, `CategoryMarquee.tsx`, `CtaArrowLink.tsx`, `Reveal.tsx`, `SmoothScroll.tsx`
+  - `components/home/`: `HomePage.tsx`, `HeroSection.tsx`, `PhotographyMarquee.tsx`, `FeaturedCollage.tsx`, `AboutSection.tsx`, `ServicesPreviewSection.tsx`, `PortfolioPreviewSection.tsx`, `TestimonialsSection.tsx`, `ContactCtaSection.tsx`
+  - `components/gallery/`: `GalleryPage.tsx`, `GalleryGrid.tsx`, `PhotoDetail.tsx`
+  - `components/pricing/`: `PricingPage.tsx`
+  - `components/booking/`: `BookingPage.tsx`
+  - `components/feedback/`: `FeedbackPage.tsx`
+- **Active Admin Components**:
+  - `components/admin/`: `auth/LoginPage.tsx`, `layout/AdminShell.tsx`, `dashboard/DashboardPage.tsx`, `photos/PhotosPage.tsx`, `photos/CropEditor.tsx`, `categories/CategoriesPage.tsx`, `pricing/PricingAdminPage.tsx`, `bookings/BookingsPage.tsx`, `payments/PaymentsPage.tsx`, `feedback/FeedbackAdminPage.tsx`, `settings/SettingsPage.tsx`
 
-Figma-generated sections grouped by domain — never `*Page` folders.
+## API & Helper Layer — `lib/`
 
-| Figma folder | New location |
-|---|---|
-| `app/HomePage/*` | `components/home/*` |
-| `app/PortfolioPage/*` | `components/portfolio/*` |
-| `app/ServicePage/*` | `components/services/*` |
-| `app/AboutPage/*` | `components/about/*` (unrouted — content for later use) |
-| `app/ContactPage/*` | `components/contact/*` (unrouted) |
+- `lib/api/client.ts`: Central fetch wrapper (`NEXT_API_URL`, `ApiError`, JSON/FormData, Bearer token).
+- Feature modules (`auth.ts`, `photos.ts`, `categories.ts`, `pricing.ts`, `availability.ts`, `bookings.ts`, `payments.ts`, `feedback.ts`, `site.ts`) map 1:1 to Spring Boot controllers.
+- `lib/booking-message.ts`: Pure helper that formats the post-booking copyable summary message (`buildBookingCopyMessage`) and social contact links (`SOCIAL_CONTACT_LINKS`), tested in `lib/booking-message.test.ts`.
+- `lib/turnstile.ts`: Cloudflare Turnstile token validation helper, tested in `lib/turnstile.test.ts`.
+- `lib/labels.ts`: Vietnamese UI labels and currency/date formatters.
 
-`components/admin/`, `components/ui/`, `components/layout/` exist for the
-next phases. Same-named components in different domains (e.g. five
-`SiteHeaderSection`s) are **not** identical — verified by checksum; they
-stay per-domain.
+## Styling & Image Pipeline
 
-## API layer — `lib/api/`
-
-`client.ts` is the single fetch wrapper (`NEXT_API_URL`, inlined at build
-time via `next.config.ts` `env` — changing it on Vercel requires a redeploy),
-`ApiError`, JSON/FormData, Bearer token). Feature modules map 1:1 to
-backend controllers: `auth`, `photos`, `categories`, `pricing`,
-`availability`, `bookings` (incl. blocked slots), `payments`,
-`feedback`, `site`. Components must call these — never `fetch()` directly.
-
-## Auth layer — `lib/auth/token.ts`
-
-Admin JWT kept in `localStorage` (`hb_admin_token`); all helpers are
-no-ops on the server. Single admin, no roles.
-
-## Type layer — `types/`
-
-Interfaces mirror the real backend DTOs/entity JSON (verified against
-Spring source): `auth`, `booking`, `availability`, `photo`, `category`,
-`pricing`, `payment`, `feedback`, `site`, `error`.
-
-## Data flow
-
-```
-UI component → lib/api/<feature>.ts → lib/api/client.ts → Spring Boot → PostgreSQL / Cloudinary
-```
-
-## Styling
-
-Tailwind v4 via `app/globals.css` only. The five identical per-page
-`tailwind.css` files were merged here (Figma color tokens, `animate-*`
-classes, keyframes, base form reset) and deleted; the unused
-`tailwind.config.js` (v3-style) was removed.
-
-## Placeholder image assets — IMPORTANT
-
-The Figma export shipped **without its image assets** (they were never
-committed). Every `import x from "./icon-*.svg"` / `"./image-*.png"`
-referenced a missing file, so ~272 1×1 transparent placeholder assets
-were generated in the component folders to keep imports resolving and
-the build green. **Replace them with the real Figma asset export** —
-same filenames — before visual review.
-
-## Hardcoded demo content (to be wired to the API next phase)
-
-- "Damien Braun" name/bio/testimonials throughout → `GET /api/site`
-  (`photographerName`, `bio`, social URLs) + `GET /api/feedback`
-- USD prices in `components/services/PhotographyPricingSection.tsx`
-  → `GET /api/pricing` (VND amounts)
-- Static portfolio/collage images → `GET /api/gallery` (Cloudinary URLs)
-- Generic `facebook.com/instagram.com/linkedin.com` links → site settings
-- Booking CTAs → `/booking` flow with `POST /api/bookings`
+- **Brand Token System**: Defined in `app/globals.css` with `--brand-55: #6B8E5A` (`--brand-60`..`--brand-99`), and `--purple-*` aliased to `var(--brand-*)` for backward compatibility.
+- **Image Quality (`quality={100}`)**: Configured in `next.config.ts` (`images.qualities: [75, 100]`) and applied across all public photographic `<Image />` components (`HeroSection`, `FeaturedCollage`, `AboutSection`, `ServicesPreviewSection`, `PortfolioPreviewSection`, `GalleryGrid`, `PhotoDetail`, `PricingPage`, `FeedbackPage`).

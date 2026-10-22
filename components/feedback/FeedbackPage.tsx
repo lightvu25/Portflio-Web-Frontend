@@ -8,7 +8,12 @@ import { formatDate } from "@/lib/labels";
 import type { Feedback } from "@/types/feedback";
 
 const input =
-  "w-full rounded-[10px] bg-dark-08 px-4 py-3 text-sm text-absolutewhite placeholder:text-grey-40 focus:outline-none focus:ring-2 focus:ring-purple-55/50";
+  "w-full rounded-[10px] bg-dark-08 px-4 py-3 text-sm text-absolutewhite placeholder:text-grey-40 focus:outline-none focus:ring-2 focus:ring-brand-55/50";
+
+/** Only render <Image /> when imageUrl is a non-empty valid http(s) URL. */
+function hasValidImageUrl(url: string | null | undefined): url is string {
+  return typeof url === "string" && /^https?:\/\/\S+/i.test(url.trim());
+}
 
 function QuoteMark({ className }: { className?: string }) {
   return (
@@ -19,6 +24,7 @@ function QuoteMark({ className }: { className?: string }) {
 }
 
 function FeedbackCard({ t, featured = false }: { t: Feedback; featured?: boolean }) {
+  const showImage = hasValidImageUrl(t.imageUrl);
   const caption = (
     <figcaption className="mt-5 flex items-center justify-between gap-4 border-t border-dark-12 pt-4">
       <p className="font-semibold text-sm text-absolutewhite">{t.customerName}</p>
@@ -30,13 +36,13 @@ function FeedbackCard({ t, featured = false }: { t: Feedback; featured?: boolean
     return (
       <figure
         className={`grid overflow-hidden rounded-[14px] border border-dark-12 bg-dark-08 ${
-          t.imageUrl ? "md:grid-cols-2" : ""
+          showImage ? "md:grid-cols-2" : ""
         }`}
       >
-        {t.imageUrl && (
+        {showImage && (
           <div className="relative aspect-[4/3] md:aspect-auto md:min-h-[320px]">
             <Image
-              src={t.imageUrl}
+              src={t.imageUrl!.trim()}
               alt={`Ảnh buổi chụp — ${t.customerName}`}
               fill
               quality={100}
@@ -46,7 +52,7 @@ function FeedbackCard({ t, featured = false }: { t: Feedback; featured?: boolean
           </div>
         )}
         <div className="flex flex-col justify-center p-6 md:p-10">
-          <QuoteMark className="h-8 w-8 text-purple-55/70" />
+          <QuoteMark className="h-8 w-8 text-brand-55/70" />
           <blockquote className="mt-4 text-base leading-8 text-grey-50 md:text-lg md:leading-9">
             “{t.content}”
           </blockquote>
@@ -58,10 +64,10 @@ function FeedbackCard({ t, featured = false }: { t: Feedback; featured?: boolean
 
   return (
     <figure className="flex h-full flex-col overflow-hidden rounded-[14px] border border-dark-12 bg-dark-08">
-      {t.imageUrl && (
+      {showImage && (
         <div className="relative aspect-[4/3]">
           <Image
-            src={t.imageUrl}
+            src={t.imageUrl!.trim()}
             alt={`Ảnh buổi chụp — ${t.customerName}`}
             fill
             quality={100}
@@ -71,8 +77,8 @@ function FeedbackCard({ t, featured = false }: { t: Feedback; featured?: boolean
         </div>
       )}
       <div className="flex flex-1 flex-col p-6">
-        {!t.imageUrl && <QuoteMark className="h-6 w-6 text-purple-55/60" />}
-        <blockquote className={`flex-1 text-sm leading-7 text-grey-50 ${t.imageUrl ? "" : "mt-3"}`}>
+        {!showImage && <QuoteMark className="h-6 w-6 text-brand-55/60" />}
+        <blockquote className={`flex-1 text-sm leading-7 text-grey-50 ${showImage ? "" : "mt-3"}`}>
           “{t.content}”
         </blockquote>
         {caption}
@@ -180,19 +186,19 @@ export function FeedbackPage({ feedback }: { feedback: Feedback[] }) {
                 className={`${input} resize-none overflow-hidden`}
               />
               {state === "sent" && (
-                <p className="rounded-[10px] bg-green-900/30 px-4 py-3 text-xs text-green-300">
+                <p className="rounded-[10px] border border-brand-80/40 bg-brand-99 px-4 py-3 text-xs font-medium text-brand-90">
                   Đã gửi cảm nhận — cảm ơn bạn!
                 </p>
               )}
               {state === "error" && (
-                <p className="rounded-[10px] bg-red-900/30 px-4 py-3 text-xs text-red-300">
+                <p className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
                   Gửi thất bại — vui lòng thử lại.
                 </p>
               )}
               <button
                 type="submit"
                 disabled={state === "sending"}
-                className="w-full rounded-[10px] bg-purple-55 py-3 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-transform hover:scale-[1.01] disabled:opacity-50"
+                className="w-full rounded-[10px] bg-brand-55 py-3 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.01] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2 disabled:opacity-50"
               >
                 {state === "sending" ? "Đang gửi…" : "Gửi cảm nhận"}
               </button>
