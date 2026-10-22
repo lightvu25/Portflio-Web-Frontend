@@ -8,17 +8,24 @@ import { ServicesPreviewSection } from "@/components/home/ServicesPreviewSection
 import { PortfolioPreviewSection } from "@/components/home/PortfolioPreviewSection";
 import { TestimonialsSection } from "@/components/home/TestimonialsSection";
 import { ContactCtaSection } from "@/components/home/ContactCtaSection";
-import { fetchCategories, fetchFeedback, fetchPhotos, fetchSite } from "@/lib/data";
+import {
+  fetchCategories,
+  fetchFeedback,
+  fetchPhotos,
+  fetchPricing,
+  fetchSite,
+} from "@/lib/data";
 
 /**
  * Homepage composition — header → hero → marquee → featured collage → about →
  * services → portfolio → testimonials → CTA → footer. All content comes from
- * the backend (published photos, categories, feedback, site settings).
+ * the backend (published photos, categories, pricing packages, feedback, site settings).
  */
 export async function HomePage() {
-  const [photos, categories, feedback, site] = await Promise.all([
+  const [photos, categories, pricing, feedback, site] = await Promise.all([
     fetchPhotos(),
     fetchCategories(),
+    fetchPricing(),
     fetchFeedback(),
     fetchSite(),
   ]);
@@ -51,7 +58,7 @@ export async function HomePage() {
         <AboutSection site={site} />
       </Reveal>
       <Reveal from="up">
-        <ServicesPreviewSection categories={categories} photos={list} />
+        <ServicesPreviewSection packages={pricing} photos={list} />
       </Reveal>
       {photos.ok && (
         <Reveal from="up">
