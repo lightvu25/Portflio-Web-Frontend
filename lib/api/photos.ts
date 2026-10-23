@@ -15,6 +15,11 @@ export function getGallery(): Promise<Photo[]> {
   return apiFetch<Photo[]>("/api/gallery");
 }
 
+/** Published customer-feedback screenshots (Feedback category only). */
+export function getFeedbackPhotos(): Promise<Photo[]> {
+  return apiFetch<Photo[]>("/api/gallery/feedback");
+}
+
 export function getFeaturedPhotos(): Promise<Photo[]> {
   return apiFetch<Photo[]>("/api/gallery/featured");
 }

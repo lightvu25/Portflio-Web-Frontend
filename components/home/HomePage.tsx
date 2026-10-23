@@ -11,6 +11,7 @@ import { ContactCtaSection } from "@/components/home/ContactCtaSection";
 import {
   fetchCategories,
   fetchFeedback,
+  fetchFeedbackPhotos,
   fetchPhotos,
   fetchPricing,
   fetchSite,
@@ -22,11 +23,12 @@ import {
  * the backend (published photos, categories, pricing packages, feedback, site settings).
  */
 export async function HomePage() {
-  const [photos, categories, pricing, feedback, site] = await Promise.all([
+  const [photos, categories, pricing, feedback, feedbackPhotos, site] = await Promise.all([
     fetchPhotos(),
     fetchCategories(),
     fetchPricing(),
     fetchFeedback(),
+    fetchFeedbackPhotos(),
     fetchSite(),
   ]);
 
@@ -66,7 +68,7 @@ export async function HomePage() {
         </Reveal>
       )}
       <Reveal from="up">
-        <TestimonialsSection testimonials={feedback} />
+        <TestimonialsSection testimonials={feedback} photos={feedbackPhotos} />
       </Reveal>
       <Reveal from="down">
         <ContactCtaSection site={site} />

@@ -23,6 +23,7 @@ export const isAdminCategory = (c: Category) => c.slug === ADMIN_CATEGORY_SLUG;
  */
 export function categoryLabel(c: Category): string {
   if (isAdminCategory(c)) return "Admin";
+  if (c.type === "FEEDBACK") return c.name;
   return c.type === "PACKAGE" ? `Gói · ${c.name}` : c.name;
 }
 

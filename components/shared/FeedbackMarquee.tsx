@@ -1,113 +1,34 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { formatDate } from "@/lib/labels";
 import type { Feedback } from "@/types/feedback";
+import type { Photo } from "@/types/photo";
+
+/** Auto-scroll speed in CSS px / second. */
+const SPEED_PX_PER_SEC = 36;
+/** Pause after the user releases a drag before auto-scroll resumes. */
+const RESUME_DELAY_MS = 1500;
+/** Pointer travel (px) before a press becomes a drag (so plain clicks still work). */
+const DRAG_THRESHOLD_PX = 6;
 
 function subscribeReducedMotion(callback: () => void) {
-  if (typeof window === "undefined") return () => {};
   const media = window.matchMedia("(prefers-reduced-motion: reduce)");
   media.addEventListener("change", callback);
   return () => media.removeEventListener("change", callback);
 }
-
-function getReducedMotionSnapshot() {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-function getReducedMotionServerSnapshot() {
-  return false;
-}
-
-/**
- * Curated authentic feedbacks used when the backend has few or no published feedbacks,
- * ensuring the marquee always has an engaging rhythm of conversation cards and quotes.
- */
-const DEFAULT_FEEDBACKS: Feedback[] = [
-  {
-    id: -1,
-    customerName: "Minh Thư (Kỉ yếu THPT Chu Văn An)",
-    content: "Ảnh xinh xỉu anh Bấu ơiii! Cả lớp ai cũng khen góc chụp tự nhiên, màu trong trẻo đúng kiểu thanh xuân luôn. Anh hỗ trợ tạo dáng siêu có tâm!",
-    cloudinaryPublicId: null,
-    imageUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
-    sortOrder: 1,
-    isPublished: true,
-    createdAt: "2026-03-15T09:30:00Z",
-    updatedAt: "2026-03-15T09:30:00Z",
-  },
-  {
-    id: -2,
-    customerName: "Hoàng Yến (Áo dài Concept)",
-    content: "Lần đầu đi chụp ảnh một mình mà không bị ngượng chút nào vì anh Bấu bắt chuyện cực vui tính. Đèn flash giả nắng làm ảnh lung linh như phim Hàn Quốc vậy á!",
-    cloudinaryPublicId: null,
-    imageUrl: null,
-    sortOrder: 2,
-    isPublished: true,
-    createdAt: "2026-03-22T14:15:00Z",
-    updatedAt: "2026-03-22T14:15:00Z",
-  },
-  {
-    id: -3,
-    customerName: "Tập thể 12A3 (THPT Kim Liên)",
-    content: "Cảm ơn anh Bấu buổi chụp kỷ yếu hôm nay nhiệt tình dã man! Mang theo cả súng bong bóng với đèn trợ sáng xịn sò. Nhận file gốc ngay trong đêm nhanh chóng mặt.",
-    cloudinaryPublicId: null,
-    imageUrl: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=800&q=80",
-    sortOrder: 3,
-    isPublished: true,
-    createdAt: "2026-04-02T16:00:00Z",
-    updatedAt: "2026-04-02T16:00:00Z",
-  },
-  {
-    id: -4,
-    customerName: "Khánh Linh (Tốt nghiệp ĐH Ngoại Thương)",
-    content: "Đúng chuẩn thợ đẹp trai chụp có tâm như lời đồn haha! 10 ảnh hậu kỳ chi tiết da dẻ mịn màng tự nhiên, không bị giả trân xíu nào. 100/10 điểm!",
-    cloudinaryPublicId: null,
-    imageUrl: null,
-    sortOrder: 4,
-    isPublished: true,
-    createdAt: "2026-04-10T10:45:00Z",
-    updatedAt: "2026-04-10T10:45:00Z",
-  },
-  {
-    id: -5,
-    customerName: "Phương Anh & Tuấn Kiệt (Couple Concept)",
-    content: "Hai đứa mình đều ngại ống kính mà qua tay anh Bấu thành cặp đôi điện ảnh luôn. Cảm ơn anh đã lưu giữ lại kỉ niệm ngày tròn 3 năm yêu nhau cực kỳ ý nghĩa.",
-    cloudinaryPublicId: null,
-    imageUrl: "https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?auto=format&fit=crop&w=800&q=80",
-    sortOrder: 5,
-    isPublished: true,
-    createdAt: "2026-04-18T18:20:00Z",
-    updatedAt: "2026-04-18T18:20:00Z",
-  },
-  {
-    id: -6,
-    customerName: "Thuỳ Dương (Kỉ yếu THCS)",
-    content: "Anh Bấu chụp cho lớp cấp 2 tụi em vui nổ trời, hướng dẫn từng bạn tạo dáng ngầu đét. Giá gói nhóm lại còn siêu hạt dẻ nữa. Sau lên cấp 3 chắc chắn book tiếp!",
-    cloudinaryPublicId: null,
-    imageUrl: null,
-    sortOrder: 6,
-    isPublished: true,
-    createdAt: "2026-04-25T11:00:00Z",
-    updatedAt: "2026-04-25T11:00:00Z",
-  },
-  {
-    id: -7,
-    customerName: "Bảo Ngọc (Chụp máy Film & KTS)",
-    content: "Mình mang thêm máy film nhờ anh chụp hộ, anh nhiệt tình test góc canh sáng chuẩn từng frame. Cả ảnh film lẫn file kỹ thuật số đều đẹp xuất sắc!",
-    cloudinaryPublicId: null,
-    imageUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80",
-    sortOrder: 7,
-    isPublished: true,
-    createdAt: "2026-05-05T15:30:00Z",
-    updatedAt: "2026-05-05T15:30:00Z",
-  },
-];
-
-function hasValidImageUrl(url: string | null | undefined): url is string {
-  return typeof url === "string" && /^https?:\/\/\S+/i.test(url.trim());
-}
+const getReducedMotion = () =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const getReducedMotionServer = () => false;
 
 function QuoteIcon({ className }: { className?: string }) {
   return (
@@ -117,138 +38,104 @@ function QuoteIcon({ className }: { className?: string }) {
   );
 }
 
-function ChatBubbleIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
+const cardHover =
+  "transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/50";
 
-function ExpandIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
-      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-    </svg>
-  );
-}
-
-/**
- * Individual Feedback Card — styled either as a Conversation Photo card
- * or an Editorial Quote card, positioned at alternating heights.
- */
-function FeedbackCardItem({
-  feedback,
-  index,
-  isCloned,
-  onOpenZoom,
+/** Feedback screenshot card — clicking the image opens the full-size view. */
+function PhotoCard({
+  photo,
+  grow,
+  interactive,
+  onOpen,
 }: {
-  feedback: Feedback;
-  index: number;
-  isCloned: boolean;
-  onOpenZoom: (item: Feedback) => void;
+  photo: Photo;
+  grow: number;
+  interactive: boolean;
+  onOpen: (photo: Photo) => void;
 }) {
-  const isImageCard = hasValidImageUrl(feedback.imageUrl);
-  const isEven = index % 2 === 0;
-
-  // Staggered vertical rhythm ("xen kẽ ở hai cao độ trên–dưới")
-  const altitudeClass = isEven
-    ? "self-start -translate-y-2 md:-translate-y-4"
-    : "self-end translate-y-4 md:translate-y-8";
-
+  const label = photo.altText ?? photo.title ?? "Ảnh feedback của khách hàng";
   return (
-    <article
-      tabIndex={isCloned ? -1 : 0}
-      aria-hidden={isCloned ? "true" : undefined}
-      onClick={() => onOpenZoom(feedback)}
+    <div
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : -1}
+      aria-label={interactive ? `Xem ảnh feedback: ${label}` : undefined}
+      onClick={() => onOpen(photo)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onOpenZoom(feedback);
+          onOpen(photo);
         }
       }}
-      className={`group relative flex shrink-0 select-none flex-col overflow-hidden rounded-[20px] bg-dark-08/90 backdrop-blur-md transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/50 ${altitudeClass} ${
-        isImageCard
-          ? "w-[280px] sm:w-[320px] md:w-[340px]"
-          : "w-[290px] sm:w-[340px] md:w-[360px]"
-      } cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55`}
+      style={{ flexGrow: grow }}
+      className={`relative min-h-0 basis-0 cursor-pointer overflow-hidden rounded-[18px] bg-dark-08 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 ${cardHover}`}
     >
-      {/* Top Header Badge */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-2">
-        <div className="flex items-center gap-2">
-          {isImageCard ? (
-            <span className="flex items-center gap-1.5 rounded-full bg-brand-55/15 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-brand-90">
-              <ChatBubbleIcon className="h-3 w-3 text-brand-55" />
-              Tin nhắn phản hồi
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-grey-40">
-              <QuoteIcon className="h-3 w-3 text-brand-55" />
-              Đánh giá dịch vụ
-            </span>
-          )}
-        </div>
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-grey-50 opacity-60 transition group-hover:bg-brand-55/20 group-hover:text-brand-90 group-hover:opacity-100">
-          <ExpandIcon className="h-3 w-3" />
-        </span>
-      </div>
-
-      {/* Main Body */}
-      {isImageCard ? (
-        <div className="relative aspect-[4/3] w-full overflow-hidden bg-dark-12 sm:aspect-[16/11]">
-          <Image
-            src={feedback.imageUrl!.trim()}
-            alt={`Cảm nhận từ ${feedback.customerName}`}
-            fill
-            quality={100}
-            sizes="(min-width: 768px) 340px, 280px"
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
-            draggable={false}
-          />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-dark-08 via-transparent to-transparent opacity-80" />
-        </div>
-      ) : null}
-
-      {/* Text Content */}
-      <div className="flex flex-1 flex-col p-5">
-        {!isImageCard && (
-          <div className="mb-2">
-            <QuoteIcon className="h-6 w-6 text-brand-55/70" />
-          </div>
-        )}
-
-        <blockquote className="line-clamp-4 flex-1 text-xs leading-6 text-grey-50 sm:text-sm sm:leading-7">
-          “{feedback.content}”
-        </blockquote>
-
-        {/* Footer info */}
-        <div className="mt-4 flex items-center justify-between border-t border-dark-12/60 pt-3">
-          <div className="min-w-0 pr-2">
-            <p className="truncate font-semibold text-xs text-absolutewhite sm:text-sm">
-              {feedback.customerName}
-            </p>
-          </div>
-          <span className="shrink-0 font-mono text-[11px] text-grey-40">
-            {formatDate(feedback.createdAt)}
-          </span>
-        </div>
-      </div>
-    </article>
+      <Image
+        src={photo.imageUrl}
+        alt={interactive ? label : ""}
+        fill
+        quality={100}
+        sizes="(min-width: 640px) 320px, 280px"
+        className="object-cover"
+        draggable={false}
+      />
+    </div>
   );
 }
 
-/**
- * Fullscreen Lightbox Zoom Modal for viewing conversational feedback or quote in detail.
- */
-function FeedbackLightboxModal({
-  feedback,
-  onClose,
-}: {
-  feedback: Feedback;
-  onClose: () => void;
-}) {
-  const isImage = hasValidImageUrl(feedback.imageUrl);
+/** Feedback text card — separate from the image card. */
+function TextCard({ feedback }: { feedback: Feedback }) {
+  return (
+    <figure
+      className={`flex min-h-0 flex-1 basis-0 flex-col overflow-hidden rounded-[18px] bg-dark-08 p-5 ${cardHover}`}
+    >
+      <QuoteIcon className="h-6 w-6 shrink-0 text-brand-55/70" />
+      <blockquote className="mt-3 line-clamp-5 flex-1 text-sm leading-7 text-grey-50">
+        “{feedback.content}”
+      </blockquote>
+      <figcaption className="mt-3 flex shrink-0 items-center justify-between gap-3 border-t border-dark-12/60 pt-3">
+        <span className="truncate text-sm font-semibold text-absolutewhite">
+          {feedback.customerName}
+        </span>
+        <span className="shrink-0 text-[11px] text-grey-40">{formatDate(feedback.createdAt)}</span>
+      </figcaption>
+    </figure>
+  );
+}
 
+interface Column {
+  key: string;
+  photo: Photo | null;
+  text: Feedback | null;
+}
+
+/** One marquee column: an image card and a text card stacked, order alternating per column. */
+function ColumnView({
+  column,
+  index,
+  interactive,
+  onOpen,
+}: {
+  column: Column;
+  index: number;
+  interactive: boolean;
+  onOpen: (photo: Photo) => void;
+}) {
+  const { photo, text } = column;
+  const imageFirst = index % 2 === 0;
+  const both = photo && text;
+  const image = photo ? (
+    <PhotoCard photo={photo} grow={both ? 1.6 : 1} interactive={interactive} onOpen={onOpen} />
+  ) : null;
+  const quote = text ? <TextCard feedback={text} /> : null;
+  return (
+    <div className="flex h-[560px] w-[270px] shrink-0 flex-col gap-4 sm:w-[310px]">
+      {imageFirst ? image : quote}
+      {imageFirst ? quote : image}
+    </div>
+  );
+}
+
+function PhotoLightbox({ photo, onClose }: { photo: Photo; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -261,370 +148,261 @@ function FeedbackLightboxModal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md transition-opacity duration-200"
+      aria-label="Xem ảnh feedback"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
       onClick={onClose}
     >
-      <div
-        className="relative flex max-h-[92vh] max-w-[90vw] flex-col items-center justify-center md:max-w-2xl"
-        onClick={(e) => e.stopPropagation()}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Đóng"
+        className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/40"
       >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Đóng cảm nhận"
-          className="absolute -top-12 right-0 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/40"
-        >
-          ✕
-        </button>
-
-        <div className="w-full overflow-hidden rounded-[20px] bg-dark-08 shadow-2xl">
-          {isImage && (
-            <div className="relative aspect-[4/3] max-h-[60vh] w-full bg-dark-12 sm:aspect-[16/10]">
-              <Image
-                src={feedback.imageUrl!.trim()}
-                alt={`Cảm nhận từ ${feedback.customerName}`}
-                fill
-                quality={100}
-                sizes="(min-width: 768px) 700px, 90vw"
-                className="object-contain"
-                priority
-              />
-            </div>
-          )}
-
-          <div className="p-6 md:p-8">
-            <div className="flex items-center justify-between border-b border-dark-12 pb-4">
-              <div>
-                <p className="font-semibold text-base text-absolutewhite md:text-lg">
-                  {feedback.customerName}
-                </p>
-                <p className="text-xs text-grey-40">
-                  {formatDate(feedback.createdAt)} · Khách hàng Bấu Chụp Choẹt
-                </p>
-              </div>
-              <span className="rounded-full bg-brand-55/20 px-3 py-1 font-medium text-xs text-brand-90">
-                Đã xác thực
-              </span>
-            </div>
-
-            {feedback.content && (
-              <blockquote className="mt-4 text-sm leading-7 text-grey-50 md:text-base md:leading-8">
-                “{feedback.content}”
-              </blockquote>
-            )}
-          </div>
-        </div>
+        ✕
+      </button>
+      <div className="relative h-[88vh] w-[94vw] max-w-4xl" onClick={(e) => e.stopPropagation()}>
+        <Image
+          src={photo.imageUrl}
+          alt={photo.altText ?? photo.title ?? "Ảnh feedback của khách hàng"}
+          fill
+          quality={100}
+          sizes="(min-width: 1024px) 896px, 94vw"
+          className="object-contain"
+          priority
+        />
       </div>
     </div>
   );
 }
 
 /**
- * Interactive Feedback Marquee
+ * Feedback marquee.
  *
- * Implements a unified requestAnimationFrame scroll-loop container combined with
- * pointer-drag gestures (Desktop mouse + Mobile touch).
- *
- * Zero animation fight:
- * - When pointer goes down, rAF auto-scroll pauses immediately.
- * - During dragging, the user has full, uninterrupted control over `scrollLeft`.
- * - On release, position is preserved. After a gentle 1.5s delay, auto-scroll resumes
- *   smoothly from that exact spot without resetting or jumping.
- * - Alternating cards sit at two staggered heights ("xen kẽ ở hai cao độ trên-dưới").
- * - Pure `touch-action: pan-y` ensures native vertical page scrolling is never broken on mobile.
+ * Motion model — ONE controller (requestAnimationFrame writing `scrollLeft`):
+ *  - auto-scroll runs continuously (hover does NOT pause it);
+ *  - pressing the pointer pauses it immediately; while dragging only the
+ *    user moves `scrollLeft`;
+ *  - on release the position is kept and auto-scroll resumes after a short rest.
+ * Seamless loop: the column set is rendered 3×; position is kept inside the
+ * middle copy and shifted by exactly one copy width when it crosses an edge.
+ * The pointer is only captured once movement passes a threshold, so a plain
+ * click on an image still opens it. `touch-action: pan-y` keeps vertical page
+ * scrolling working on touch devices.
  */
 export function FeedbackMarquee({
-  testimonials = [],
+  texts,
+  photos,
 }: {
-  testimonials?: Feedback[];
+  texts: Feedback[];
+  photos: Photo[];
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const singleSetRef = useRef<HTMLDivElement>(null);
-  const marqueeId = useId();
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const copyRef = useRef<HTMLDivElement>(null);
 
-  // Active items list: combine provided feedback with curated defaults if list is short
-  const items = useMemo(
-    () =>
-      testimonials.length >= 6
-        ? testimonials
-        : [
-            ...testimonials,
-            ...DEFAULT_FEEDBACKS.slice(0, Math.max(6 - testimonials.length, 4)),
-          ],
-    [testimonials],
-  );
+  const columns = useMemo<Column[]>(() => {
+    const n = Math.max(texts.length, photos.length);
+    return Array.from({ length: n }, (_, i) => ({
+      key: `${photos[i]?.id ?? "x"}-${texts[i]?.id ?? "x"}-${i}`,
+      photo: photos[i] ?? null,
+      text: texts[i] ?? null,
+    }));
+  }, [texts, photos]);
 
-  // Drag & Motion state refs
-  const isPointerDownRef = useRef(false);
-  const isInteractingRef = useRef(false);
-  const isHoveredRef = useRef(false);
-  const hasDraggedRef = useRef(false);
-  const dragStartXRef = useRef(0);
-  const dragStartScrollLeftRef = useRef(0);
-  const singleWidthRef = useRef(0);
-  const resumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const preventClickRef = useRef(false);
-  const animationFrameId = useRef<number | null>(null);
-  const hasInitializedScroll = useRef(false);
-
-  // UI States
-  const [isDraggingUI, setIsDraggingUI] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const isReducedMotion = useSyncExternalStore(
+  const reducedMotion = useSyncExternalStore(
     subscribeReducedMotion,
-    getReducedMotionSnapshot,
-    getReducedMotionServerSnapshot,
+    getReducedMotion,
+    getReducedMotionServer,
   );
-  const [zoomedFeedback, setZoomedFeedback] = useState<Feedback | null>(null);
 
-  // Measure single track width & initialize middle scroll position
+  /** How many times the column set repeats inside one copy so a copy always spans the viewport. */
+  const [repeat, setRepeat] = useState(1);
+  const [dragging, setDragging] = useState(false);
+  const [zoomed, setZoomed] = useState<Photo | null>(null);
+
+  // Mutable motion state — refs so frames never trigger React renders.
+  const posRef = useRef(0); // float scroll position
+  const copyWidthRef = useRef(0);
+  const pressedRef = useRef(false);
+  const draggedRef = useRef(false);
+  const startXRef = useRef(0);
+  const startPosRef = useRef(0);
+  const pausedUntilRef = useRef(0);
+  const initializedRef = useRef(false);
+
+  // Measure one copy; derive repeat count; place the viewport inside the middle copy.
   useLayoutEffect(() => {
-    const setEl = singleSetRef.current;
-    const container = containerRef.current;
-    if (!setEl || !container) return;
-
+    const viewport = viewportRef.current;
+    const copy = copyRef.current;
+    if (!viewport || !copy) return;
     const measure = () => {
-      const width = setEl.offsetWidth;
-      if (width > 0) {
-        singleWidthRef.current = width;
-        // Position container inside middle set (set index 1) once
-        if (!hasInitializedScroll.current) {
-          container.scrollLeft = width;
-          hasInitializedScroll.current = true;
-        }
+      const baseWidth = copy.scrollWidth / repeat;
+      if (baseWidth <= 0) return;
+      const needed = Math.max(1, Math.ceil(viewport.clientWidth / baseWidth));
+      if (needed !== repeat) {
+        setRepeat(needed);
+        return;
+      }
+      copyWidthRef.current = copy.offsetWidth;
+      if (!initializedRef.current) {
+        posRef.current = copy.offsetWidth;
+        viewport.scrollLeft = copy.offsetWidth;
+        initializedRef.current = true;
       }
     };
-
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(setEl);
+    ro.observe(viewport);
+    ro.observe(copy);
     return () => ro.disconnect();
-  }, [items]);
+  }, [columns, repeat]);
 
-  // Unified requestAnimationFrame auto-scroll loop
+  /** Keep the float position inside the middle copy [w, 2w). */
+  const wrap = useCallback((pos: number) => {
+    const w = copyWidthRef.current;
+    if (w <= 0) return pos;
+    while (pos >= 2 * w) pos -= w;
+    while (pos < w) pos += w;
+    return pos;
+  }, []);
+
+  // Single animation loop.
   useEffect(() => {
-    let lastTime = performance.now();
-
+    if (reducedMotion || columns.length === 0) return;
+    let raf = 0;
+    let last = performance.now();
     const tick = (now: number) => {
-      const deltaMs = Math.min(64, now - lastTime);
-      lastTime = now;
-
-      const shouldAutoScroll =
-        !isPaused &&
-        !isReducedMotion &&
-        !isInteractingRef.current &&
-        singleWidthRef.current > 0;
-
-      if (shouldAutoScroll && containerRef.current) {
-        const container = containerRef.current;
-        const singleWidth = singleWidthRef.current;
-        // 36 pixels per second (~0.6px per frame at 60fps) — smooth and legible
-        const distance = (36 * deltaMs) / 1000;
-        const nextScroll = container.scrollLeft + distance;
-
-        // Seamless wrap: wrap seamlessly when crossing set 2 boundary
-        if (nextScroll >= singleWidth * 2) {
-          container.scrollLeft = nextScroll - singleWidth;
-        } else {
-          container.scrollLeft = nextScroll;
+      const dt = Math.min(64, now - last);
+      last = now;
+      const viewport = viewportRef.current;
+      const active =
+        viewport &&
+        copyWidthRef.current > 0 &&
+        !pressedRef.current &&
+        now >= pausedUntilRef.current;
+      if (active) {
+        // Adopt any external scroll (wheel / keyboard) before advancing.
+        if (Math.abs(viewport.scrollLeft - posRef.current) > 2) {
+          posRef.current = viewport.scrollLeft;
         }
+        posRef.current = wrap(posRef.current + (SPEED_PX_PER_SEC * dt) / 1000);
+        viewport.scrollLeft = posRef.current;
       }
-
-      animationFrameId.current = requestAnimationFrame(tick);
+      raf = requestAnimationFrame(tick);
     };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [reducedMotion, columns.length, wrap]);
 
-    animationFrameId.current = requestAnimationFrame(tick);
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    pressedRef.current = true; // pauses auto-scroll immediately
+    draggedRef.current = false;
+    startXRef.current = e.clientX;
+    posRef.current = viewport.scrollLeft;
+    startPosRef.current = viewport.scrollLeft;
+  }, []);
 
-    return () => {
-      if (animationFrameId.current !== null) {
-        cancelAnimationFrame(animationFrameId.current);
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pressedRef.current) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const dx = e.clientX - startXRef.current;
+    if (!draggedRef.current) {
+      if (Math.abs(dx) < DRAG_THRESHOLD_PX) return;
+      draggedRef.current = true;
+      setDragging(true);
+      try {
+        viewport.setPointerCapture(e.pointerId);
+      } catch {
+        /* pointer already released */
       }
-      if (resumeTimeoutRef.current) {
-        clearTimeout(resumeTimeoutRef.current);
+    }
+    // Re-anchor on wrap so dragging stays seamless in both directions.
+    const target = startPosRef.current - dx;
+    const wrapped = wrap(target);
+    if (wrapped !== target) {
+      startPosRef.current += wrapped - target;
+    }
+    posRef.current = wrapped;
+    viewport.scrollLeft = wrapped;
+  }, [wrap]);
+
+  const endPress = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pressedRef.current) return;
+    pressedRef.current = false;
+    const viewport = viewportRef.current;
+    if (viewport) {
+      posRef.current = viewport.scrollLeft;
+      try {
+        viewport.releasePointerCapture(e.pointerId);
+      } catch {
+        /* not captured */
       }
-    };
-  }, [isPaused, isReducedMotion]);
-
-  // Pointer Down (Mouse or Touch)
-  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Only primary button
-    if (e.button !== 0) return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    isPointerDownRef.current = true;
-    isInteractingRef.current = true;
-    hasDraggedRef.current = false;
-    dragStartXRef.current = e.clientX;
-    dragStartScrollLeftRef.current = container.scrollLeft;
-
-    if (resumeTimeoutRef.current) {
-      clearTimeout(resumeTimeoutRef.current);
     }
-
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {}
+    if (draggedRef.current) setDragging(false);
+    pausedUntilRef.current = performance.now() + RESUME_DELAY_MS;
   }, []);
 
-  // Pointer Move
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isPointerDownRef.current || !containerRef.current) return;
-
-    const dx = e.clientX - dragStartXRef.current;
-    if (!hasDraggedRef.current && Math.abs(dx) > 5) {
-      hasDraggedRef.current = true;
-      setIsDraggingUI(true);
-    }
-
-    if (hasDraggedRef.current) {
-      const singleWidth = singleWidthRef.current;
-      let target = dragStartScrollLeftRef.current - dx;
-
-      // Handle wrap during drag so the user can drag infinitely in either direction
-      if (singleWidth > 0) {
-        if (target >= singleWidth * 2) {
-          target -= singleWidth;
-          dragStartScrollLeftRef.current -= singleWidth;
-        } else if (target < singleWidth) {
-          target += singleWidth;
-          dragStartScrollLeftRef.current += singleWidth;
-        }
-      }
-
-      containerRef.current.scrollLeft = target;
+  /** Swallow the click that follows a real drag; plain clicks pass through. */
+  const onClickCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (draggedRef.current) {
+      e.stopPropagation();
+      e.preventDefault();
+      draggedRef.current = false;
     }
   }, []);
 
-  // Pointer Up / Cancel
-  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isPointerDownRef.current) return;
-    isPointerDownRef.current = false;
-    setIsDraggingUI(false);
+  const open = useCallback((photo: Photo) => setZoomed(photo), []);
 
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {}
-
-    if (hasDraggedRef.current) {
-      preventClickRef.current = true;
-      setTimeout(() => {
-        preventClickRef.current = false;
-      }, 180);
-    }
-
-    // After a short pause (1500ms), resume auto-scroll gently without resetting position
-    if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
-    resumeTimeoutRef.current = setTimeout(() => {
-      if (!isHoveredRef.current && !isPointerDownRef.current) {
-        isInteractingRef.current = false;
-      }
-    }, 1500);
-  }, []);
-
-  // Hover Handlers
-  const handlePointerEnter = useCallback(() => {
-    isHoveredRef.current = true;
-    isInteractingRef.current = true;
-    if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
-  }, []);
-
-  const handlePointerLeave = useCallback(() => {
-    isHoveredRef.current = false;
-    if (!isPointerDownRef.current) {
-      if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
-      resumeTimeoutRef.current = setTimeout(() => {
-        if (!isHoveredRef.current && !isPointerDownRef.current) {
-          isInteractingRef.current = false;
-        }
-      }, 1200);
-    }
-  }, []);
-
-  // Handle Card Zoom Click
-  const handleOpenZoom = useCallback((item: Feedback) => {
-    if (preventClickRef.current || hasDraggedRef.current) return;
-    setZoomedFeedback(item);
-  }, []);
+  if (columns.length === 0) return null;
 
   return (
     <div className="relative w-full">
-      {/* Controls Bar */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 px-5 md:px-10">
-        <p className="text-xs text-grey-40 sm:text-sm">
-          <span className="hidden sm:inline">Kéo hoặc vuốt để xem thêm · </span>
-          Nhấp vào thẻ để xem chi tiết
-        </p>
-        <button
-          type="button"
-          onClick={() => setIsPaused((prev) => !prev)}
-          aria-label={isPaused ? "Tiếp tục cuộn tự động" : "Tạm dừng cuộn tự động"}
-          className="flex items-center gap-2 rounded-full border border-dark-12 bg-dark-08/90 px-3 py-1.5 text-xs font-medium text-grey-40 transition-colors hover:border-dark-20 hover:text-absolutewhite"
-        >
-          <span
-            className={`h-2 w-2 rounded-full ${
-              isPaused ? "bg-amber-400" : "animate-pulse bg-brand-55"
-            }`}
-          />
-          {isPaused ? "Tiếp tục chạy" : "Tạm dừng"}
-        </button>
-      </div>
-
-      {/* Main Drag-to-Scroll Container */}
       <div
-        ref={containerRef}
-        id={`feedback-marquee-${marqueeId}`}
-        aria-label="Cảm nhận khách hàng cuộn ngang"
+        ref={viewportRef}
         role="region"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onPointerEnter={handlePointerEnter}
-        onPointerLeave={handlePointerLeave}
-        className={`relative flex h-[480px] w-full touch-pan-y items-center overflow-x-auto overflow-y-hidden py-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
-          isDraggingUI ? "cursor-grabbing" : "cursor-grab"
+        aria-label="Cảm nhận của khách hàng"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endPress}
+        onPointerCancel={endPress}
+        onClickCapture={onClickCapture}
+        className={`flex w-full touch-pan-y select-none overflow-x-auto overflow-y-hidden py-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+          dragging ? "cursor-grabbing" : "cursor-grab"
         }`}
       >
-        {/* Render 3 copies of the feedback set for seamless infinite loop */}
         {[0, 1, 2].map((copyIndex) => (
           <div
             key={copyIndex}
-            ref={copyIndex === 0 ? singleSetRef : undefined}
-            data-copy-index={copyIndex}
-            aria-hidden={copyIndex > 0 ? "true" : undefined}
-            className="flex h-full shrink-0 items-center gap-6 pr-6"
+            ref={copyIndex === 0 ? copyRef : undefined}
+            aria-hidden={copyIndex > 0 ? true : undefined}
+            className="flex shrink-0 gap-4 pr-4"
           >
-            {items.map((feedback, idx) => (
-              <FeedbackCardItem
-                key={`${copyIndex}-${feedback.id}-${idx}`}
-                feedback={feedback}
-                index={idx}
-                isCloned={copyIndex > 0}
-                onOpenZoom={handleOpenZoom}
-              />
-            ))}
+            {Array.from({ length: repeat }, (_, rep) =>
+              columns.map((column, i) => (
+                <ColumnView
+                  key={`${rep}-${column.key}`}
+                  column={column}
+                  index={i}
+                  interactive={copyIndex === 0 && rep === 0}
+                  onOpen={open}
+                />
+              )),
+            )}
           </div>
         ))}
       </div>
-
-      {/* Edge Gradient Fades for Smooth Appearance */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-dark-06 via-dark-06/70 to-transparent sm:w-24 md:w-32"
+        className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-dark-06 to-transparent sm:w-20"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-dark-06 via-dark-06/70 to-transparent sm:w-24 md:w-32"
+        className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-dark-06 to-transparent sm:w-20"
       />
-
-      {/* Lightbox Modal */}
-      {zoomedFeedback && (
-        <FeedbackLightboxModal
-          feedback={zoomedFeedback}
-          onClose={() => setZoomedFeedback(null)}
-        />
-      )}
+      {zoomed && <PhotoLightbox photo={zoomed} onClose={() => setZoomed(null)} />}
     </div>
   );
 }

@@ -16,7 +16,7 @@ function PhotoGroup({ photos }: { photos: Photo[] }) {
           key={p.id}
           href={`/gallery/${p.id}`}
           aria-label={p.altText ?? p.title ?? "Xem ảnh"}
-          className={`group/img relative block aspect-[4/5] shrink-0 overflow-hidden rounded-[14px] bg-dark-08 ${cardWidth}`}
+          className={`group/img relative block aspect-[4/5] shrink-0 overflow-hidden rounded-[14px] bg-dark-08 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/50 ${cardWidth}`}
         >
           <Image
             src={p.imageUrl}
@@ -24,7 +24,7 @@ function PhotoGroup({ photos }: { photos: Photo[] }) {
             fill
             quality={100}
             sizes="(min-width: 1480px) 600px, (min-width: 1024px) 45vw, (min-width: 640px) 60vw, 90vw"
-            className="object-cover transition-transform duration-300 group-hover/img:scale-105"
+            className="object-cover"
           />
         </Link>
       ))}
@@ -84,7 +84,7 @@ export function PortfolioPreviewSection({ photos }: { photos: Photo[] }) {
       {/* Auto-sliding band — full-bleed so the loop never shows a gap at
           the section edges; cards keep the same responsive widths as the
           old manual scroller (2/3/4 visible columns). */}
-      <div className="group relative mt-10 overflow-hidden pb-14 md:pb-20">
+      <div className="group relative mt-4 overflow-hidden py-6 pb-14 md:pb-20">
         <div
           ref={trackRef}
           className="animate-marquee-track flex w-max [--duration:60s] group-hover:[animation-play-state:paused]"

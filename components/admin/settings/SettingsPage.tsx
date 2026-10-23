@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getAdminSiteSettings, updateSiteSettings } from "@/lib/api/site";
+import { describeApiError } from "@/lib/api/client";
 import { getAdminPhotos } from "@/lib/api/photos";
 import { useAdmin } from "@/lib/auth/useAdmin";
 import { isAdminCategory } from "@/lib/labels";
@@ -33,7 +34,7 @@ export function AdminSettingsPage() {
           heroImageUrl: s.heroImageUrl ?? "",
           profilePhotoId: s.profilePhoto?.id ?? null,
           depositAmount: s.depositAmount,
-          equipment: s.equipment ?? "",
+          equipment: s.equipment && s.equipment.trim() ? s.equipment : undefined,
         }),
       )
       .catch((err) => {
@@ -49,11 +50,16 @@ export function AdminSettingsPage() {
     if (!token || !form) return;
     setSaving(true);
     setMessage(null);
+    setError(null);
     try {
-      await updateSiteSettings(token, form);
+      // A blank equipment must be omitted: the backend stores it in a jsonb column.
+      await updateSiteSettings(token, {
+        ...form,
+        equipment: form.equipment && form.equipment.trim() ? form.equipment : undefined,
+      });
       setMessage("Đã lưu cài đặt.");
     } catch (err) {
-      if (!onApiError(err)) setError("Lưu cài đặt thất bại.");
+      if (!onApiError(err)) setError(`Lưu cài đặt thất bại — ${describeApiError(err)}`);
     } finally {
       setSaving(false);
     }
