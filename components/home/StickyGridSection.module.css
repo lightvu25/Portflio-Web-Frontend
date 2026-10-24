@@ -1,0 +1,176 @@
+/* Scoped styles adapted from Codrops StickyGridScroll (MIT License, Theo Plawinski & Codrops).
+   Uses --sg-rem Instead of mutating root html font-size so Tailwind rem tokens stay untouched. */
+
+.block {
+  --sg-rem: calc(100vw / 1440);
+  position: relative;
+  height: 425vh;
+  background-color: var(--dark-03);
+  color: var(--absolutewhite);
+  border-bottom: 1px solid var(--dark-12);
+}
+
+@media (max-width: 767px) {
+  .block {
+    --sg-rem: calc(100vw / 920);
+  }
+}
+
+.wrapper {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 100vh;
+  padding: 0 calc(24 * var(--sg-rem));
+  will-change: transform;
+  overflow: hidden;
+  background-color: var(--dark-03);
+}
+
+.content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100vh;
+  text-align: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: clamp(0.7rem, calc(12 * var(--sg-rem)), 0.85rem);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--brand-55);
+}
+
+.title {
+  width: min(calc(924 * var(--sg-rem)), 90vw);
+  font-family: var(--font-manrope), Arial, sans-serif;
+  font-size: clamp(2rem, calc(76 * var(--sg-rem)), 4.75rem);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--absolutewhite);
+  will-change: transform, opacity;
+}
+
+.description {
+  width: min(calc(455 * var(--sg-rem)), 86vw);
+  margin-top: clamp(1rem, calc(24 * var(--sg-rem)), 1.75rem);
+  font-size: clamp(0.8rem, calc(14 * var(--sg-rem)), 0.95rem);
+  line-height: 1.6;
+  color: var(--grey-50);
+  will-change: opacity;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: clamp(1.25rem, calc(32 * var(--sg-rem)), 2rem);
+  padding: 0.75rem 1.5rem;
+  border-radius: 9999px;
+  background-color: var(--brand-55);
+  color: #ffffff;
+  font-size: clamp(0.75rem, calc(13 * var(--sg-rem)), 0.875rem);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: inset 4px 4px 17.4px rgba(255, 255, 255, 0.28);
+  transition: transform 0.2s ease, background-color 0.2s ease;
+  will-change: opacity, transform;
+}
+
+.button:hover {
+  background-color: var(--brand-60);
+  transform: scale(1.03);
+}
+
+/* ---------------- Gallery ---------------- */
+
+.gallery {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate3d(-50%, -50%, 0);
+  width: calc(736 * var(--sg-rem));
+  z-index: 1;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  column-gap: calc(32 * var(--sg-rem));
+  row-gap: calc(40 * var(--sg-rem));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  will-change: transform;
+}
+
+.item {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: clamp(8px, calc(12 * var(--sg-rem)), 14px);
+  background-color: var(--dark-08);
+  will-change: transform;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background-color: var(--dark-08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block {
+    height: auto;
+    padding: 3.5rem 1.25rem;
+  }
+
+  .wrapper {
+    position: relative;
+    height: auto;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .content {
+    height: auto;
+    margin-bottom: 2rem;
+    pointer-events: auto;
+  }
+
+  .title {
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  .description,
+  .button {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  .gallery {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+}

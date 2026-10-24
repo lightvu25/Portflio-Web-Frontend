@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getAdminBookings } from "@/lib/api/bookings";
+import { deleteBooking, getAdminBookings } from "@/lib/api/bookings";
 import { getAdminFeedback } from "@/lib/api/feedback";
 import { getPayments } from "@/lib/api/payments";
 import { getAdminPhotos } from "@/lib/api/photos";
@@ -12,7 +12,7 @@ import type { Booking } from "@/types/booking";
 import type { Feedback } from "@/types/feedback";
 import type { PaymentResponse } from "@/types/payment";
 import type { Photo } from "@/types/photo";
-import { Badge, Card, Spinner, StatCard } from "@/components/admin/ui";
+import { Badge, Btn, Card, Spinner, StatCard } from "@/components/admin/ui";
 
 interface Data {
   photos: Photo[];
@@ -26,20 +26,39 @@ export function AdminDashboardPage() {
   const { token, ready, onApiError } = useAdmin();
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!ready || !token) return;
+  const load = (t: string) => {
     Promise.all([
-      getAdminPhotos(token),
-      getAdminBookings(token),
-      getPayments(token),
-      getAdminFeedback(token),
+      getAdminPhotos(t),
+      getAdminBookings(t),
+      getPayments(t),
+      getAdminFeedback(t),
     ])
       .then(([photos, bookings, payments, feedback]) => setData({ photos, bookings, payments, feedback }))
       .catch((err) => {
         if (!onApiError(err)) setError("Không tải được dữ liệu tổng quan.");
       });
-  }, [ready, token, onApiError]);
+  };
+
+  useEffect(() => {
+    if (!ready || !token) return;
+    load(token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, token]);
+
+  const removeBooking = async (b: Booking) => {
+    if (!token || !confirm(`Xóa booking "${b.bookingCode}" của khách "${b.customerName}"?`)) return;
+    setBusyId(b.id);
+    try {
+      await deleteBooking(token, b.id);
+      load(token);
+    } catch (err) {
+      if (!onApiError(err)) alert("Xóa booking thất bại.");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   if (error) return <Card><p className="text-sm text-red-600">{error}</p></Card>;
   if (!data)
@@ -83,7 +102,8 @@ export function AdminDashboardPage() {
                   <th className="pb-3 pr-4 font-medium">Khách hàng</th>
                   <th className="pb-3 pr-4 font-medium">Mã booking</th>
                   <th className="pb-3 pr-4 font-medium">Trạng thái</th>
-                  <th className="pb-3 font-medium">Thời gian tạo</th>
+                  <th className="pb-3 pr-4 font-medium">Thời gian tạo</th>
+                  <th className="pb-3 font-medium">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -94,7 +114,12 @@ export function AdminDashboardPage() {
                     <td className="py-3 pr-4">
                       <Badge color={bookingStatusColor[b.status]}>{bookingStatusLabel[b.status]}</Badge>
                     </td>
-                    <td className="py-3 text-gray-500">{formatDateTime(b.createdAt)}</td>
+                    <td className="py-3 pr-4 text-gray-500">{formatDateTime(b.createdAt)}</td>
+                    <td className="py-3">
+                      <Btn variant="danger" disabled={busyId === b.id} className="px-2.5 py-1 text-xs" onClick={() => removeBooking(b)}>
+                        Xóa
+                      </Btn>
+                    </td>
                   </tr>
                 ))}
               </tbody>

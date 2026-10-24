@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CONTACT, resolveZaloPhone } from "@/components/shared/contact";
 import { getAdminSiteSettings, updateSiteSettings } from "@/lib/api/site";
 import { describeApiError } from "@/lib/api/client";
 import { getAdminPhotos } from "@/lib/api/photos";
@@ -30,7 +31,7 @@ export function AdminSettingsPage() {
           bio: s.bio ?? "",
           facebookUrl: s.facebookUrl ?? "",
           instagramUrl: s.instagramUrl ?? "",
-          messengerUrl: s.messengerUrl ?? "",
+          messengerUrl: resolveZaloPhone(s.messengerUrl),
           heroImageUrl: s.heroImageUrl ?? "",
           profilePhotoId: s.profilePhoto?.id ?? null,
           depositAmount: s.depositAmount,
@@ -40,7 +41,11 @@ export function AdminSettingsPage() {
       .catch((err) => {
         if (!onApiError(err)) {
           // 404 = no settings row yet — start with defaults.
-          setForm({ photographerName: "Bấu Chụp Choẹt", depositAmount: 500000 });
+          setForm({
+            photographerName: "Bấu Chụp Choẹt",
+            messengerUrl: CONTACT.zalo,
+            depositAmount: 500000,
+          });
         }
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -48,13 +53,19 @@ export function AdminSettingsPage() {
 
   const save = async () => {
     if (!token || !form) return;
-    setSaving(true);
     setMessage(null);
     setError(null);
+    const zaloPhone = (form.messengerUrl ?? "").trim();
+    if (!/^\d{10}$/.test(zaloPhone)) {
+      setError("Số điện thoại Zalo không hợp lệ — vui lòng nhập đúng 10 chữ số.");
+      return;
+    }
+    setSaving(true);
     try {
       // A blank equipment must be omitted: the backend stores it in a jsonb column.
       await updateSiteSettings(token, {
         ...form,
+        messengerUrl: zaloPhone,
         equipment: form.equipment && form.equipment.trim() ? form.equipment : undefined,
       });
       setMessage("Đã lưu cài đặt.");
@@ -102,8 +113,19 @@ export function AdminSettingsPage() {
           <input className={inputCls} value={form.instagramUrl ?? ""} onChange={(e) => set("instagramUrl", e.target.value)} />
         </div>
         <div>
-          <label className={labelCls}>Messenger URL</label>
-          <input className={inputCls} value={form.messengerUrl ?? ""} onChange={(e) => set("messengerUrl", e.target.value)} />
+          <label className={labelCls}>Zalo (10 chữ số)</label>
+          <input
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            pattern="[0-9]{10}"
+            placeholder="Nhập 10 chữ số (0982246205)"
+            className={inputCls}
+            value={form.messengerUrl ?? ""}
+            onChange={(e) =>
+              set("messengerUrl", e.target.value.replace(/\D/g, "").slice(0, 10))
+            }
+          />
         </div>
         <div>
           <label className={labelCls}>Tiền cọc (VNĐ)</label>

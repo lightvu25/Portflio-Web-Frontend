@@ -25,7 +25,7 @@ export interface BookingMessageInput {
 
 export const SOCIAL_CONTACT_LINKS = {
   facebook: "https://www.facebook.com/haibaudepzai",
-  instagram: "https://www.instagram.com/bauu.chupchoet",
+  instagram: "https://www.instagram.com/_bauu.chupchoet_/",
 } as const;
 
 export function formatShootDateVi(isoDate: string): string {

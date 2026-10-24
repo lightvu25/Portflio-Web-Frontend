@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getPayments, markPaymentPaid } from "@/lib/api/payments";
+import { deletePayment, getPayments, markPaymentPaid } from "@/lib/api/payments";
 import { useAdmin } from "@/lib/auth/useAdmin";
 import { formatDateTime, formatVnd, paymentStatusLabel } from "@/lib/labels";
 import type { PaymentResponse } from "@/types/payment";
@@ -40,6 +40,19 @@ export function AdminPaymentsPage() {
       await load(token);
     } catch (err) {
       if (!onApiError(err)) alert("Không đánh dấu được thanh toán.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const remove = async (p: PaymentResponse) => {
+    if (!token || !confirm(`Xóa khoản thanh toán của mã booking "${p.bookingCode}"?`)) return;
+    setBusy(p.id);
+    try {
+      await deletePayment(token, p.id);
+      await load(token);
+    } catch (err) {
+      if (!onApiError(err)) alert("Xóa thanh toán thất bại.");
     } finally {
       setBusy(null);
     }
@@ -85,11 +98,16 @@ export function AdminPaymentsPage() {
                   <td className="py-3 pr-4 text-xs text-gray-400">{formatDateTime(p.createdAt)}</td>
                   <td className="py-3 pr-4 text-xs text-gray-400">{formatDateTime(p.paidAt)}</td>
                   <td className="py-3">
-                    {p.status === "UNPAID" && (
-                      <Btn variant="success" disabled={busy === p.id} className="px-2.5 py-1 text-xs" onClick={() => markPaid(p)}>
-                        Đánh dấu đã nhận
+                    <div className="flex flex-wrap gap-1.5">
+                      {p.status === "UNPAID" && (
+                        <Btn variant="success" disabled={busy === p.id} className="px-2.5 py-1 text-xs" onClick={() => markPaid(p)}>
+                          Đánh dấu đã nhận
+                        </Btn>
+                      )}
+                      <Btn variant="danger" disabled={busy === p.id} className="px-2.5 py-1 text-xs" onClick={() => remove(p)}>
+                        Xóa
                       </Btn>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}

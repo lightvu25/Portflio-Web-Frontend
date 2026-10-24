@@ -63,11 +63,6 @@ export function PhotoDetail({
               <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </Link>
-          {photo.title && (
-            <p className="absolute bottom-4 left-4 rounded-[8px] bg-black/50 px-3 py-1.5 font-medium text-xs font-medium text-white backdrop-blur">
-              {photo.title}
-            </p>
-          )}
         </div>
 
         {/* Info panel */}
@@ -84,9 +79,6 @@ export function PhotoDetail({
                 {category}
               </p>
             )}
-            <h1 className="mt-2 font-semibold text-3xl font-semibold text-absolutewhite md:text-4xl">
-              {photo.title ?? "Không tiêu đề"}
-            </h1>
             {photo.description && (
               <p className="mt-3 text-sm leading-7 text-grey-50">
                 {photo.description}
@@ -116,7 +108,7 @@ export function PhotoDetail({
                 )}
                 <Link
                   href={`/booking?package=${pkg.id}`}
-                  className="mt-6 block rounded-[10px] bg-brand-55 py-3 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
+                  className="mt-6 block rounded-[10px] bg-brand-55 py-3 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                 >
                   Đặt gói này
                 </Link>
@@ -128,7 +120,7 @@ export function PhotoDetail({
                 </p>
                 <Link
                   href="/booking"
-                  className="mt-6 block rounded-[10px] bg-brand-55 py-3 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
+                  className="mt-6 block rounded-[10px] bg-brand-55 py-3 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                 >
                   Đặt lịch ngay
                 </Link>

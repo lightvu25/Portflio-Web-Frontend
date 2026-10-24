@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { cancelBooking, completeBooking, confirmBooking, getAdminBookings, getBookingStatus, rejectBooking } from "@/lib/api/bookings";
+import {
+  cancelBooking,
+  completeBooking,
+  confirmBooking,
+  deleteBooking,
+  getAdminBookings,
+  getBookingStatus,
+  rejectBooking,
+} from "@/lib/api/bookings";
 import { useAdmin } from "@/lib/auth/useAdmin";
 import { bookingStatusColor, bookingStatusLabel, formatDateTime, sessionTypeLabel, slotLabel } from "@/lib/labels";
 import type { Booking, BookingStatus } from "@/types/booking";
@@ -72,6 +80,19 @@ export function AdminBookingsPage() {
       await load(token);
     } catch (err) {
       if (!onApiError(err)) alert("Thao tác thất bại.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const remove = async (b: Booking) => {
+    if (!token || !confirm(`Xóa booking "${b.bookingCode}" của khách "${b.customerName}"?`)) return;
+    setBusy(b.id);
+    try {
+      await deleteBooking(token, b.id);
+      await load(token);
+    } catch (err) {
+      if (!onApiError(err)) alert("Xóa booking thất bại.");
     } finally {
       setBusy(null);
     }
@@ -159,6 +180,9 @@ export function AdminBookingsPage() {
                             {a.label}
                           </Btn>
                         ))}
+                        <Btn variant="danger" disabled={busy === b.id} className="px-2.5 py-1 text-xs" onClick={() => remove(b)}>
+                          Xóa
+                        </Btn>
                       </div>
                     </td>
                   </tr>

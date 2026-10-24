@@ -1,17 +1,36 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getAdminCategories } from "@/lib/api/categories";
 import { ApiError, describeApiError } from "@/lib/api/client";
-import { bulkUpdatePhotoCategories, deletePhoto, getAdminPhotos, publishPhoto, reorderPhotos, unpublishPhoto, updatePhoto, uploadPhoto } from "@/lib/api/photos";
+import {
+  bulkUpdatePhotoCategories,
+  deletePhoto,
+  getAdminPhotos,
+  publishPhoto,
+  reorderPhotos,
+  unpublishPhoto,
+  updatePhoto,
+  uploadPhoto,
+} from "@/lib/api/photos";
 import { useAdmin } from "@/lib/auth/useAdmin";
 import { categoryLabel, formatDate, isAdminCategory } from "@/lib/labels";
 import type { Category } from "@/types/category";
-import type { Photo } from "@/types/photo";
+import type { Photo, PhotoStatus } from "@/types/photo";
 import { CropEditor, type CropFraction } from "@/components/admin/photos/CropEditor";
-import { Badge, Btn, Card, EmptyState, inputCls, labelCls, Modal, Spinner } from "@/components/admin/ui";
+import { Badge, Btn, Card, inputCls, labelCls, Modal, Spinner } from "@/components/admin/ui";
 
 type UploadState = "pending" | "uploading" | "done" | "error";
+
+/**
+ * Category filter view:
+ * - `number`: specific Category ID
+ * - `"UNCATEGORIZED"`: photos with `categories.length === 0`
+ * - `"ALL"`: all photos across all categories
+ */
+type CategoryView = number | "UNCATEGORIZED" | "ALL";
+
+type StatusFilter = "ALL" | PhotoStatus;
 
 interface PendingFile {
   key: string;
@@ -37,6 +56,19 @@ const uploadStateText: Record<UploadState, string> = {
 const PREVIEW_EDGE = 960;
 const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/avif";
 
+function categoryTypeBadge(c: Category): { label: string; cls: string } {
+  if (isAdminCategory(c)) {
+    return { label: "Nội bộ", cls: "bg-amber-100 text-amber-800" };
+  }
+  if (c.type === "FEEDBACK") {
+    return { label: "Cảm nhận", cls: "bg-purple-100 text-purple-700" };
+  }
+  if (c.type === "PACKAGE") {
+    return { label: "Gói chụp", cls: "bg-blue-100 text-blue-700" };
+  }
+  return { label: "Bộ sưu tập", cls: "bg-[#EBF1E7] text-[#4E6B40]" };
+}
+
 /**
  * Builds a small preview blob URL. Decoding a 40MP file into a <img> at
  * object-URL resolution is what made batch selection lag/OOM the tab —
@@ -55,7 +87,9 @@ async function makePreviewUrl(file: File): Promise<string> {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("canvas unsupported");
     ctx.drawImage(bitmap, 0, 0, w, h);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.85),
+    );
     if (!blob) throw new Error("preview encode failed");
     return URL.createObjectURL(blob);
   } finally {
@@ -63,7 +97,7 @@ async function makePreviewUrl(file: File): Promise<string> {
   }
 }
 
-/** Photos admin — multi-select upload → per-file metadata → visual grid. */
+/** Photos admin — organized by Category with contextual multi-upload, search, bulk actions, and reorder. */
 export function AdminPhotosPage() {
   const { token, ready, onApiError } = useAdmin();
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -77,22 +111,28 @@ export function AdminPhotosPage() {
   /** Slot in the list (excluding the dragged card) where a drop will insert. */
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
   /** Absolute position of the thin insertion bar inside the grid. */
-  const [indicator, setIndicator] = useState<{ left: number; top: number; height: number } | null>(null);
+  const [indicator, setIndicator] = useState<{ left: number; top: number; height: number } | null>(
+    null,
+  );
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
-  /** Category id filter for the grid (reorder is global — disabled while filtered). */
-  const [catFilter, setCatFilter] = useState<number | null>(null);
+  /** Active Category tab — defaults to first available Category once loaded. */
+  const [activeCategory, setActiveCategory] = useState<CategoryView | null>(null);
+  /** Search query and status filter within the selected Category. */
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   /** Multi-select for bulk category editing. */
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
   const [zoomedPhoto, setZoomedPhoto] = useState<Photo | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkMsg, setBulkMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   /** Pending-file key whose crop editor is open. */
   const [cropKey, setCropKey] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const uploadSectionRef = useRef<HTMLDivElement>(null);
   // Mirror of `pending` for unmount cleanup.
   const pendingRef = useRef<PendingFile[]>([]);
   useEffect(() => {
@@ -105,9 +145,14 @@ export function AdminPhotosPage() {
       const [p, c] = await Promise.all([getAdminPhotos(t), getAdminCategories(t)]);
       setPhotos(p);
       setCategories(c);
+      setActiveCategory((prev) => {
+        if (typeof prev === "number" && c.some((cat) => cat.id === prev)) return prev;
+        if (prev === "UNCATEGORIZED" || prev === "ALL") return prev;
+        return c[0]?.id ?? "ALL";
+      });
       setError(null);
     } catch (err) {
-      if (!onApiError(err)) setError("Không tải được danh sách ảnh.");
+      if (!onApiError(err)) setError("Không tải được danh sách ảnh và danh mục.");
     } finally {
       setLoading(false);
     }
@@ -126,21 +171,66 @@ export function AdminPhotosPage() {
     [],
   );
 
+  const selectedCategoryObj = useMemo(
+    () =>
+      typeof activeCategory === "number"
+        ? (categories.find((c) => c.id === activeCategory) ?? null)
+        : null,
+    [activeCategory, categories],
+  );
+
+  // Per-category photo counts (total & published) derived accurately from loaded data.
+  const categoryStats = useMemo(() => {
+    const map = new Map<number, { total: number; published: number; draft: number }>();
+    for (const c of categories) {
+      map.set(c.id, { total: 0, published: 0, draft: 0 });
+    }
+    let uncategorizedTotal = 0;
+    for (const p of photos) {
+      if (!p.categories || p.categories.length === 0) {
+        uncategorizedTotal++;
+        continue;
+      }
+      for (const c of p.categories) {
+        const entry = map.get(c.id);
+        if (entry) {
+          entry.total++;
+          if (p.status === "PUBLISHED") entry.published++;
+          else entry.draft++;
+        }
+      }
+    }
+    return { byCategoryId: map, uncategorizedTotal };
+  }, [categories, photos]);
+
+  const handleSelectCategory = (nextView: CategoryView) => {
+    setActiveCategory(nextView);
+    setSelected(new Set());
+    setNotice(null);
+    setOrderError(null);
+  };
+
   // ---------- Upload flow ----------
   const pickFiles = (files: FileList | null) => {
     if (!files?.length) return;
+    const defaultCategoryIds = typeof activeCategory === "number" ? [activeCategory] : [];
     const items: PendingFile[] = Array.from(files).map((file, i) => ({
       key: `${file.name}-${Date.now()}-${i}`,
       file,
       preview: null,
       title: file.name.replace(/\.[^.]+$/, ""),
       sortOrder: photos.length + pending.length + i + 1,
-      categoryIds: [],
+      categoryIds: defaultCategoryIds,
       crop: null,
       state: file.type.startsWith("image/") ? "pending" : "error",
-      error: file.type.startsWith("image/") ? undefined : "Định dạng không được hỗ trợ — chỉ nhận JPEG/PNG/WebP/AVIF.",
+      error: file.type.startsWith("image/")
+        ? undefined
+        : "Định dạng không được hỗ trợ — chỉ nhận JPEG/PNG/WebP/AVIF.",
     }));
     setPending((prev) => [...prev, ...items]);
+    queueMicrotask(() => {
+      uploadSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
     // Generate previews sequentially so big files decode one at a time.
     for (const item of items) {
       if (item.state === "error") continue;
@@ -179,6 +269,22 @@ export function AdminPhotosPage() {
       ),
     );
 
+  const assignCurrentCategoryToAllPending = () => {
+    if (typeof activeCategory !== "number") return;
+    setPending((prev) =>
+      prev.map((p) =>
+        p.state === "done"
+          ? p
+          : {
+              ...p,
+              categoryIds: p.categoryIds.includes(activeCategory)
+                ? p.categoryIds
+                : toggleCatExclusive(p.categoryIds, activeCategory),
+            },
+      ),
+    );
+  };
+
   const removePending = (key: string) => {
     setPending((prev) => {
       const item = prev.find((p) => p.key === key);
@@ -187,8 +293,8 @@ export function AdminPhotosPage() {
     });
   };
 
-  const uploadOne = async (item: PendingFile) => {
-    if (!token) return;
+  const uploadOne = async (item: PendingFile): Promise<boolean> => {
+    if (!token) return false;
     patchPending(item.key, { state: "uploading", error: undefined });
     try {
       await uploadPhoto(token, item.file, {
@@ -198,9 +304,11 @@ export function AdminPhotosPage() {
         crop: item.crop ?? undefined,
       });
       patchPending(item.key, { state: "done" });
+      return true;
     } catch (err) {
       patchPending(item.key, { state: "error", error: describeApiError(err) });
       onApiError(err);
+      return false;
     }
   };
 
@@ -208,9 +316,14 @@ export function AdminPhotosPage() {
   const uploadAll = async () => {
     if (!token || uploading) return;
     setUploading(true);
+    setNotice(null);
+    let successCount = 0;
+    let failCount = 0;
     for (const item of pending) {
       if (item.state === "done") continue;
-      await uploadOne(item);
+      const ok = await uploadOne(item);
+      if (ok) successCount++;
+      else failCount++;
     }
     setUploading(false);
     // Remove finished cards (revoking their preview URLs) once per batch.
@@ -218,27 +331,74 @@ export function AdminPhotosPage() {
       prev.forEach((p) => p.state === "done" && p.preview && URL.revokeObjectURL(p.preview));
       return prev.filter((p) => p.state !== "done");
     });
-    if (token) load(token);
+    if (successCount > 0) {
+      const targetName = selectedCategoryObj
+        ? `danh mục "${categoryLabel(selectedCategoryObj)}"`
+        : "thư viện";
+      setNotice({
+        ok: failCount === 0,
+        text:
+          failCount === 0
+            ? `Đã tải lên thành công ${successCount} ảnh vào ${targetName}.`
+            : `Đã tải lên ${successCount} ảnh, ${failCount} ảnh lỗi — vui lòng kiểm tra lại.`,
+      });
+    }
+    if (token) await load(token);
   };
 
-  const retryOne = (key: string) => {
+  const retryOne = async (key: string) => {
     const item = pending.find((p) => p.key === key);
-    if (item && item.state === "error") uploadOne(item);
-  };
-
-  // ---------- Photo actions ----------
-  const act = async (fn: () => Promise<unknown>, errMsg: string) => {
-    if (!token) return;
-    try {
-      await fn();
-      await load(token);
-    } catch (err) {
-      if (!onApiError(err)) alert(errMsg);
+    if (item && item.state === "error") {
+      const ok = await uploadOne(item);
+      if (ok && token) {
+        removePending(key);
+        setNotice({ ok: true, text: `Đã tải lên ảnh "${item.title}".` });
+        await load(token);
+      }
     }
   };
 
-  const sorted = [...photos].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
-  const visiblePhotos = catFilter == null ? sorted : sorted.filter((p) => p.categories.some((c) => c.id === catFilter));
+  // ---------- Photo actions ----------
+  const act = async (fn: () => Promise<unknown>, successMsg: string, errMsg: string) => {
+    if (!token) return;
+    try {
+      await fn();
+      setNotice({ ok: true, text: successMsg });
+      await load(token);
+    } catch (err) {
+      if (!onApiError(err)) {
+        setNotice({ ok: false, text: `${errMsg} — ${describeApiError(err)}` });
+      }
+    }
+  };
+
+  const sorted = useMemo(
+    () => [...photos].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id),
+    [photos],
+  );
+
+  // Filter by selected Category first
+  const categoryFilteredPhotos = useMemo(() => {
+    if (activeCategory === "ALL" || activeCategory == null) return sorted;
+    if (activeCategory === "UNCATEGORIZED") {
+      return sorted.filter((p) => p.categories.length === 0);
+    }
+    return sorted.filter((p) => p.categories.some((c) => c.id === activeCategory));
+  }, [sorted, activeCategory]);
+
+  // Apply status filter and search query within the active Category
+  const visiblePhotos = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return categoryFilteredPhotos.filter((p) => {
+      if (statusFilter !== "ALL" && p.status !== statusFilter) return false;
+      if (!q) return true;
+      const inTitle = (p.title ?? "").toLowerCase().includes(q);
+      const inDesc = (p.description ?? "").toLowerCase().includes(q);
+      const inAlt = (p.altText ?? "").toLowerCase().includes(q);
+      const inId = `#${p.id}`.includes(q);
+      return inTitle || inDesc || inAlt || inId;
+    });
+  }, [categoryFilteredPhotos, statusFilter, searchQuery]);
 
   // ---------- Bulk selection ----------
   const toggleSelect = (id: number) =>
@@ -261,7 +421,10 @@ export function AdminPhotosPage() {
   );
   const zoomedIndex = zoomedPhoto ? visiblePhotos.findIndex((p) => p.id === zoomedPhoto.id) : -1;
   const prevZoomedPhoto = zoomedIndex > 0 ? visiblePhotos[zoomedIndex - 1] : undefined;
-  const nextZoomedPhoto = zoomedIndex >= 0 && zoomedIndex < visiblePhotos.length - 1 ? visiblePhotos[zoomedIndex + 1] : undefined;
+  const nextZoomedPhoto =
+    zoomedIndex >= 0 && zoomedIndex < visiblePhotos.length - 1
+      ? visiblePhotos[zoomedIndex + 1]
+      : undefined;
 
   const applyBulk = async (add: number[], remove: number[]) => {
     if (!token || selectedCount === 0 || bulkBusy) return;
@@ -269,37 +432,43 @@ export function AdminPhotosPage() {
     const verb = [
       add.length ? `gán ${add.length} danh mục` : "",
       remove.length ? `bỏ ${remove.length} danh mục` : "",
-    ].filter(Boolean).join(" và ");
+    ]
+      .filter(Boolean)
+      .join(" và ");
     if (!window.confirm(`${verb} cho ${photoIds.length} ảnh đã chọn?`)) return;
     setBulkBusy(true);
-    setBulkMsg(null);
+    setNotice(null);
     try {
       await bulkUpdatePhotoCategories(token, {
         photoIds,
         addCategoryIds: add.length ? add : undefined,
         removeCategoryIds: remove.length ? remove : undefined,
       });
-      setBulkMsg({ ok: true, text: `Đã cập nhật danh mục cho ${photoIds.length} ảnh.` });
+      setNotice({ ok: true, text: `Đã cập nhật danh mục cho ${photoIds.length} ảnh.` });
       setBulkOpen(false);
       clearSelection();
       await load(token);
     } catch (err) {
       const text = err instanceof ApiError ? err.message : "Cập nhật danh mục thất bại.";
-      setBulkMsg({ ok: false, text });
+      setNotice({ ok: false, text });
       onApiError(err);
     } finally {
       setBulkBusy(false);
     }
   };
+
   /** Cards without the dragged one — the insertion index addresses this list. */
+  const canReorder =
+    !savingOrder &&
+    activeCategory === "ALL" &&
+    statusFilter === "ALL" &&
+    searchQuery.trim() === "";
   const others = dragId == null ? sorted : sorted.filter((p) => p.id !== dragId);
   const othersIndex = new Map(others.map((p, i) => [p.id, i]));
 
   // ---------- Insertion-based drag-to-reorder ----------
-  // IMPORTANT: the dragged card must STAY in the DOM — removing it mid-drag
-  // makes Chrome abort the drag session (the gap rendered but drop never fired).
   const startDrag = (e: React.DragEvent, photo: Photo) => {
-    if (savingOrder) {
+    if (!canReorder) {
       e.preventDefault();
       return;
     }
@@ -307,16 +476,18 @@ export function AdminPhotosPage() {
     const card = (e.currentTarget as HTMLElement).closest("article");
     const cardRect = card?.getBoundingClientRect();
     if (card && cardRect) {
-      // Use the whole card as the drag ghost, anchored where the handle was grabbed.
       e.dataTransfer.setDragImage(card, e.clientX - cardRect.left, e.clientY - cardRect.top);
     }
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", String(photo.id));
-    // Indicator starts at the card's own slot.
     setInsertIndex(othersIndex.get(photo.id) ?? 0);
     if (cardRect && gridRef.current) {
       const cr = gridRef.current.getBoundingClientRect();
-      setIndicator({ left: cardRect.left - cr.left - 10, top: cardRect.top - cr.top, height: cardRect.height });
+      setIndicator({
+        left: cardRect.left - cr.left - 10,
+        top: cardRect.top - cr.top,
+        height: cardRect.height,
+      });
     }
   };
 
@@ -326,25 +497,22 @@ export function AdminPhotosPage() {
     setIndicator(null);
   };
 
-  /** Pointer over card: left half = insert before it, right half = after it. */
   const overCard = (e: React.DragEvent, photo: Photo) => {
     if (dragId == null) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     const j = othersIndex.get(photo.id);
-    if (j == null) return; // hovering the dragged card's own slot — keep indicator
+    if (j == null) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const before = e.clientX < rect.left + rect.width / 2;
     setInsertIndex(before ? j : j + 1);
     if (gridRef.current) {
       const cr = gridRef.current.getBoundingClientRect();
-      // Bar sits mid-gap between cards (gap-4 = 16px).
       const x = before ? rect.left - cr.left - 10 : rect.right - cr.left + 6;
       setIndicator({ left: x, top: rect.top - cr.top, height: rect.height });
     }
   };
 
-  /** One persistence request — the final order, atomically. */
   const commitReorder = async () => {
     const id = dragId;
     const idx = insertIndex;
@@ -353,15 +521,18 @@ export function AdminPhotosPage() {
 
     const ids = others.map((p) => p.id);
     ids.splice(Math.min(idx, ids.length), 0, id);
-    if (ids.join() === sorted.map((p) => p.id).join()) return; // order unchanged
+    if (ids.join() === sorted.map((p) => p.id).join()) return;
 
-    const prev = photos; // last confirmed order — rollback target
+    const prev = photos;
     setPhotos(ids.map((pid, i) => ({ ...prev.find((x) => x.id === pid)!, sortOrder: i + 1 })));
     setSavingOrder(true);
     setOrderError(null);
     try {
-      const saved = await reorderPhotos(token, ids.map((pid, i) => ({ id: pid, sortOrder: i + 1 })));
-      setPhotos(saved); // confirmed order from the DB
+      const saved = await reorderPhotos(
+        token,
+        ids.map((pid, i) => ({ id: pid, sortOrder: i + 1 })),
+      );
+      setPhotos(saved);
     } catch (err) {
       setPhotos(prev);
       if (!onApiError(err)) setOrderError("Không thể lưu thứ tự ảnh. Vui lòng thử lại.");
@@ -370,18 +541,27 @@ export function AdminPhotosPage() {
     }
   };
 
+  const activeCategoryTitle = selectedCategoryObj
+    ? categoryLabel(selectedCategoryObj)
+    : activeCategory === "UNCATEGORIZED"
+      ? "Chưa gán danh mục"
+      : "Tất cả ảnh";
+
+  const publishedInCategory = categoryFilteredPhotos.filter((p) => p.status === "PUBLISHED").length;
+  const draftInCategory = categoryFilteredPhotos.length - publishedInCategory;
+
   return (
     <div className="space-y-6">
-      {/* Upload */}
+      {/* 1. Page Header & Category Selector */}
       <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 pb-5">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Tải ảnh lên</h2>
-            <p className="mt-0.5 text-sm text-gray-500">
-              Chọn nhiều ảnh — nhập tiêu đề, danh mục, thứ tự rồi tải lên (mặc định là Bản nháp).
+            <h1 className="text-xl font-bold text-gray-900">Quản lý thư viện ảnh</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Chọn danh mục bên dưới để xem, thêm ảnh mới hoặc chỉnh sửa ảnh theo từng chủ đề.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               ref={fileInput}
               type="file"
@@ -393,226 +573,534 @@ export function AdminPhotosPage() {
                 e.target.value = "";
               }}
             />
-            <Btn variant="ghost" onClick={() => fileInput.current?.click()}>
-              Chọn ảnh
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#6B8E5A] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#5A7A4B]"
+            >
+              <span aria-hidden="true" className="text-base leading-none">＋</span>
+              {selectedCategoryObj
+                ? `Thêm ảnh vào "${categoryLabel(selectedCategoryObj)}"`
+                : "Thêm ảnh mới"}
+            </button>
+            <Btn variant="ghost" onClick={() => token && load(token)}>
+              Làm mới
             </Btn>
-            {pending.length > 0 && (
-              <Btn onClick={uploadAll} disabled={uploading}>
-                {uploading ? "Đang tải lên…" : `Tải lên ${pending.filter((p) => p.state !== "done").length} ảnh`}
-              </Btn>
+          </div>
+        </div>
+
+        {/* Category cards/tabs */}
+        <div className="mt-5">
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Danh mục ({categories.length})
+            </span>
+            <span className="text-xs text-gray-400">
+              Tổng cộng {photos.length} ảnh trong hệ thống
+            </span>
+          </div>
+
+          {loading && categories.length === 0 ? (
+            <div className="flex justify-center py-6">
+              <Spinner />
+            </div>
+          ) : (
+            <div
+              role="tablist"
+              aria-label="Danh mục ảnh"
+              className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
+            >
+              {categories.map((c) => {
+                const stats = categoryStats.byCategoryId.get(c.id) ?? {
+                  total: 0,
+                  published: 0,
+                  draft: 0,
+                };
+                const isActive = activeCategory === c.id;
+                const badge = categoryTypeBadge(c);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => handleSelectCategory(c.id)}
+                    className={`flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all ${
+                      isActive
+                        ? "border-[#6B8E5A] bg-[#F4F7F2] ring-2 ring-[#6B8E5A]/30 shadow-sm"
+                        : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/70"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span
+                        className={`font-semibold text-sm leading-snug ${
+                          isActive ? "text-[#4E6B40]" : "text-gray-800"
+                        }`}
+                      >
+                        {categoryLabel(c)}
+                      </span>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.cls}`}
+                      >
+                        {badge.label}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-baseline justify-between gap-2">
+                      <span
+                        className={`text-lg font-bold ${
+                          isActive ? "text-[#4E6B40]" : "text-gray-900"
+                        }`}
+                      >
+                        {stats.total}{" "}
+                        <span className="text-xs font-normal text-gray-500">ảnh</span>
+                      </span>
+                      <span className="text-[11px] text-gray-400">
+                        {stats.published} đã đăng
+                        {stats.draft > 0 ? ` · ${stats.draft} nháp` : ""}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {categoryStats.uncategorizedTotal > 0 && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeCategory === "UNCATEGORIZED"}
+                  onClick={() => handleSelectCategory("UNCATEGORIZED")}
+                  className={`flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all ${
+                    activeCategory === "UNCATEGORIZED"
+                      ? "border-amber-500 bg-amber-50/70 ring-2 ring-amber-500/30 shadow-sm"
+                      : "border-amber-200 bg-amber-50/30 hover:border-amber-300"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-semibold text-amber-900">
+                      Chưa gán danh mục
+                    </span>
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                      Cần phân loại
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-baseline justify-between gap-2">
+                    <span className="text-lg font-bold text-amber-900">
+                      {categoryStats.uncategorizedTotal}{" "}
+                      <span className="text-xs font-normal text-amber-700">ảnh</span>
+                    </span>
+                    <span className="text-[11px] text-amber-700">Chưa có category</span>
+                  </div>
+                </button>
+              )}
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeCategory === "ALL"}
+                onClick={() => handleSelectCategory("ALL")}
+                className={`flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all ${
+                  activeCategory === "ALL"
+                    ? "border-[#6B8E5A] bg-[#F4F7F2] ring-2 ring-[#6B8E5A]/30 shadow-sm"
+                    : "border-dashed border-gray-200 bg-gray-50/60 hover:border-gray-300 hover:bg-gray-100/60"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span
+                    className={`text-sm font-semibold ${
+                      activeCategory === "ALL" ? "text-[#4E6B40]" : "text-gray-700"
+                    }`}
+                  >
+                    Tất cả ảnh
+                  </span>
+                  <span className="shrink-0 rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                    Toàn bộ
+                  </span>
+                </div>
+                <div className="mt-3 flex items-baseline justify-between gap-2">
+                  <span className="text-lg font-bold text-gray-900">
+                    {photos.length}{" "}
+                    <span className="text-xs font-normal text-gray-500">ảnh</span>
+                  </span>
+                  <span className="text-[11px] text-gray-400">Hỗ trợ kéo thả thứ tự</span>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* 2. Pending Upload Queue (shown when files are selected) */}
+      {pending.length > 0 && (
+        <div ref={uploadSectionRef}>
+          <Card className="border-[#6B8E5A]/40 bg-[#F4F7F2]/40">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">
+                  Hàng đợi tải ảnh lên ({pending.length})
+                </h2>
+                <p className="mt-0.5 text-sm text-gray-600">
+                  {selectedCategoryObj ? (
+                    <>
+                      Ảnh mới đã được gán mặc định vào danh mục{" "}
+                      <strong className="text-[#4E6B40]">
+                        {categoryLabel(selectedCategoryObj)}
+                      </strong>
+                      . Bạn có thể chỉnh tiêu đề, vùng cắt hoặc thêm danh mục khác trước khi tải lên.
+                    </>
+                  ) : (
+                    "Chọn danh mục cho từng ảnh bên dưới rồi bấm Tải lên."
+                  )}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedCategoryObj && (
+                  <Btn
+                    variant="ghost"
+                    className="text-xs"
+                    onClick={assignCurrentCategoryToAllPending}
+                  >
+                    Gán &ldquo;{categoryLabel(selectedCategoryObj)}&rdquo; cho tất cả ảnh chờ
+                  </Btn>
+                )}
+                <Btn variant="ghost" onClick={() => fileInput.current?.click()}>
+                  + Chọn thêm ảnh
+                </Btn>
+                <button
+                  type="button"
+                  onClick={uploadAll}
+                  disabled={uploading}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6B8E5A] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#5A7A4B] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {uploading
+                    ? "Đang tải lên…"
+                    : `Tải lên ${pending.filter((p) => p.state !== "done").length} ảnh`}
+                </button>
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm text-gray-500">
+              Đã tải lên {pending.filter((p) => p.state === "done").length} / {pending.length} ảnh
+              {pending.some((p) => p.state === "error") &&
+                ` · ${pending.filter((p) => p.state === "error").length} lỗi`}
+              {pending.find((p) => p.state === "uploading") &&
+                ` · Đang tải: ${pending.find((p) => p.state === "uploading")!.file.name}`}
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {pending.map((p) => (
+                <div
+                  key={p.key}
+                  className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-gray-200">
+                    {p.preview ? (
+                      p.crop ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
+                        <img
+                          src={p.preview}
+                          alt={p.title}
+                          className="absolute"
+                          style={{
+                            left: `${(-p.crop.cropX / p.crop.cropW) * 100}%`,
+                            top: `${(-p.crop.cropY / p.crop.cropH) * 100}%`,
+                            width: `${100 / p.crop.cropW}%`,
+                            height: `${100 / p.crop.cropH}%`,
+                          }}
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
+                        <img src={p.preview} alt={p.title} className="h-full w-full object-cover" />
+                      )
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-xs text-gray-400">
+                        {p.state === "error" ? "Không xem trước được" : "Đang tạo xem trước…"}
+                      </div>
+                    )}
+                    {p.crop && (
+                      <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white">
+                        Đã cắt
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removePending(p.key)}
+                      aria-label="Bỏ ảnh"
+                      className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+                    >
+                      ✕
+                    </button>
+                    {p.preview && (
+                      <button
+                        type="button"
+                        onClick={() => setCropKey(p.key)}
+                        className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-black/75"
+                      >
+                        {p.crop ? "Sửa vùng cắt" : "Cắt ảnh"}
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    <input
+                      className={inputCls}
+                      value={p.title}
+                      onChange={(e) => patchPending(p.key, { title: e.target.value })}
+                      placeholder="Tiêu đề"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {categories.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => toggleCat(p.key, c.id)}
+                          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                            p.categoryIds.includes(c.id)
+                              ? "bg-[#6B8E5A] text-white"
+                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
+                        >
+                          {categoryLabel(c)}
+                        </button>
+                      ))}
+                    </div>
+                    {p.categoryIds.length === 0 && (
+                      <p className="text-[11px] text-amber-600">
+                        Chưa chọn danh mục — hãy chọn ít nhất 1 danh mục cho ảnh này.
+                      </p>
+                    )}
+                    {adminCat && p.categoryIds.includes(adminCat.id) && (
+                      <p className="text-[11px] text-amber-600">
+                        Danh mục Admin chỉ dành cho ảnh giới thiệu — không gán cùng danh mục khác.
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-500">Thứ tự</label>
+                      <input
+                        type="number"
+                        min={0}
+                        className={`${inputCls} w-24`}
+                        value={p.sortOrder}
+                        onChange={(e) => patchPending(p.key, { sortOrder: Number(e.target.value) })}
+                      />
+                      <span
+                        className={`ml-auto text-xs font-medium ${
+                          p.state === "done"
+                            ? "text-green-600"
+                            : p.state === "error"
+                              ? "text-red-600"
+                              : "text-gray-400"
+                        }`}
+                      >
+                        {uploadStateText[p.state]}
+                      </span>
+                    </div>
+                    {p.error && <p className="break-words text-xs text-red-500">{p.error}</p>}
+                    {p.state === "error" && (
+                      <button
+                        type="button"
+                        onClick={() => retryOne(p.key)}
+                        className="text-xs font-semibold text-[#6B8E5A] hover:underline"
+                      >
+                        Thử lại
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* 3. Active Category Photo Grid */}
+      <Card>
+        {/* Category Context Header */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-lg font-bold text-gray-900">{activeCategoryTitle}</h2>
+              {selectedCategoryObj && (
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    categoryTypeBadge(selectedCategoryObj).cls
+                  }`}
+                >
+                  {categoryTypeBadge(selectedCategoryObj).label}
+                </span>
+              )}
+              <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
+                {categoryFilteredPhotos.length} ảnh
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              {publishedInCategory} đã đăng · {draftInCategory} bản nháp
+              {activeCategory === "ALL" && (
+                <span className="ml-2 text-gray-400">
+                  · {savingOrder ? "Đang lưu thứ tự…" : "Kéo biểu tượng ⋮⋮ trên thẻ ảnh để sắp xếp"}
+                </span>
+              )}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6B8E5A] px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#5A7A4B]"
+            >
+              <span>＋</span> Thêm ảnh
+            </button>
+          </div>
+        </div>
+
+        {/* Search, Status Filter & Bulk-Selection Toolbar */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search input */}
+            <div className="relative w-full sm:w-64">
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Tìm tiêu đề, mô tả, #id…"
+                className={`${inputCls} py-1.5 text-xs`}
+              />
+            </div>
+
+            {/* Status filter pills */}
+            <div className="inline-flex rounded-xl bg-gray-100 p-1 text-xs">
+              {(
+                [
+                  { id: "ALL", label: `Tất cả (${categoryFilteredPhotos.length})` },
+                  { id: "PUBLISHED", label: `Đã đăng (${publishedInCategory})` },
+                  { id: "DRAFT", label: `Bản nháp (${draftInCategory})` },
+                ] as { id: StatusFilter; label: string }[]
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={`rounded-lg px-2.5 py-1 font-medium transition-colors ${
+                    statusFilter === tab.id
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Bulk selection controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Btn
+              variant={selectMode ? "primary" : "ghost"}
+              className="px-3 py-1.5 text-xs"
+              onClick={() => {
+                if (selectMode) {
+                  setSelectMode(false);
+                  clearSelection();
+                } else {
+                  setSelectMode(true);
+                }
+              }}
+            >
+              {selectMode ? "✓ Chế độ chọn (Đang bật)" : "Bật chọn nhiều ảnh"}
+            </Btn>
+            {selectMode && (
+              <>
+                <Btn variant="ghost" className="px-2.5 py-1.5 text-xs" onClick={selectAllVisible}>
+                  Chọn tất cả ({visiblePhotos.length})
+                </Btn>
+                <Btn
+                  variant="ghost"
+                  className="px-2.5 py-1.5 text-xs"
+                  onClick={clearSelection}
+                  disabled={selectedCount === 0}
+                >
+                  Bỏ chọn
+                </Btn>
+                <Btn
+                  className="px-3 py-1.5 text-xs"
+                  disabled={selectedCount === 0}
+                  onClick={() => setBulkOpen(true)}
+                >
+                  Đổi danh mục ({selectedCount})
+                </Btn>
+              </>
             )}
           </div>
         </div>
 
-        {pending.length > 0 && (
-          <>
-          <p className="mt-4 text-sm text-gray-500">
-            Đã tải lên {pending.filter((p) => p.state === "done").length} / {pending.length} ảnh
-            {pending.some((p) => p.state === "error") &&
-              ` · ${pending.filter((p) => p.state === "error").length} lỗi`}
-            {pending.find((p) => p.state === "uploading") &&
-              ` · Đang tải: ${pending.find((p) => p.state === "uploading")!.file.name}`}
-          </p>
-          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {pending.map((p) => (
-              <div key={p.key} className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-gray-200">
-                  {p.preview ? (
-                    p.crop ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
-                      <img
-                        src={p.preview}
-                        alt={p.title}
-                        className="absolute"
-                        style={{
-                          left: `${(-p.crop.cropX / p.crop.cropW) * 100}%`,
-                          top: `${(-p.crop.cropY / p.crop.cropH) * 100}%`,
-                          width: `${100 / p.crop.cropW}%`,
-                          height: `${100 / p.crop.cropH}%`,
-                        }}
-                      />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
-                      <img src={p.preview} alt={p.title} className="h-full w-full object-cover" />
-                    )
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-xs text-gray-400">
-                      {p.state === "error" ? "Không xem trước được" : "Đang tạo xem trước…"}
-                    </div>
-                  )}
-                  {p.crop && (
-                    <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white">
-                      Đã cắt
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => removePending(p.key)}
-                    aria-label="Bỏ ảnh"
-                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
-                  >
-                    ✕
-                  </button>
-                  {p.preview && (
-                    <button
-                      type="button"
-                      onClick={() => setCropKey(p.key)}
-                      className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-black/75"
-                    >
-                      {p.crop ? "Sửa vùng cắt" : "Cắt ảnh"}
-                    </button>
-                  )}
-                </div>
-                <div className="mt-3 space-y-2">
-                  <input
-                    className={inputCls}
-                    value={p.title}
-                    onChange={(e) => patchPending(p.key, { title: e.target.value })}
-                    placeholder="Tiêu đề"
-                  />
-                  <div className="flex flex-wrap gap-1.5">
-                    {categories.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => toggleCat(p.key, c.id)}
-                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                          p.categoryIds.includes(c.id)
-                            ? "bg-green-600 text-white"
-                            : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-                        }`}
-                      >
-                        {categoryLabel(c)}
-                      </button>
-                    ))}
-                  </div>
-                  {adminCat && p.categoryIds.includes(adminCat.id) && (
-                    <p className="text-[11px] text-amber-600">
-                      Danh mục Admin chỉ dành cho ảnh giới thiệu — không gán cùng danh mục khác.
-                    </p>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-500">Thứ tự</label>
-                    <input
-                      type="number"
-                      min={0}
-                      className={`${inputCls} w-24`}
-                      value={p.sortOrder}
-                      onChange={(e) => patchPending(p.key, { sortOrder: Number(e.target.value) })}
-                    />
-                    <span
-                      className={`ml-auto text-xs font-medium ${
-                        p.state === "done" ? "text-green-600" : p.state === "error" ? "text-red-600" : "text-gray-400"
-                      }`}
-                    >
-                      {uploadStateText[p.state]}
-                    </span>
-                  </div>
-                  {p.error && <p className="break-words text-xs text-red-500">{p.error}</p>}
-                  {p.state === "error" && (
-                    <button
-                      type="button"
-                      onClick={() => retryOne(p.key)}
-                      className="text-xs font-semibold text-green-600 hover:text-green-700"
-                    >
-                      Thử lại
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          </>
-        )}
-      </Card>
-
-      {/* Grid */}
-      <Card>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-bold text-gray-900">
-            Thư viện ảnh ({photos.length})
-            <span className="ml-2 text-xs font-normal text-gray-400">
-              {savingOrder ? "Đang lưu thứ tự…" : "Kéo thả để sắp xếp"}
-            </span>
-          </h2>
-          <div className="flex items-center gap-2">
-            <select
-              className={`${inputCls} w-44`}
-              value={catFilter ?? ""}
-              onChange={(e) => setCatFilter(e.target.value === "" ? null : Number(e.target.value))}
-            >
-              <option value="">Tất cả danh mục</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {categoryLabel(c)}
-                </option>
-              ))}
-            </select>
-            <Btn variant="ghost" onClick={() => token && load(token)}>Làm mới</Btn>
-          </div>
-        </div>
-
-        {/* Bulk-selection toolbar */}
-        <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-gray-100 pb-3">
-          <Btn
-            variant={selectMode ? "primary" : "ghost"}
-            className="px-3 py-1 text-xs"
-            onClick={() => {
-              if (selectMode) {
-                setSelectMode(false);
-                clearSelection();
-              } else {
-                setSelectMode(true);
-              }
-            }}
+        {/* Status / Notification Banners */}
+        {notice && (
+          <div
+            className={`mb-4 flex items-center justify-between rounded-xl px-4 py-3 text-sm ${
+              notice.ok ? "bg-[#EBF1E7] text-[#4E6B40]" : "bg-red-50 text-red-600"
+            }`}
           >
-            {selectMode ? "✓ Chế độ chọn (Đang bật)" : "Bật chọn ảnh"}
-          </Btn>
-          {selectMode && (
-            <>
-              <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={selectAllVisible}>
-                Chọn tất cả
-              </Btn>
-              <Btn
-                variant="ghost"
-                className="px-2.5 py-1 text-xs"
-                onClick={clearSelection}
-                disabled={selectedCount === 0}
-              >
-                Bỏ chọn
-              </Btn>
-              <span className="text-xs text-gray-500">
-                {selectedCount > 0 ? `Đã chọn ${selectedCount} ảnh` : "Chưa chọn ảnh nào (nhấp vào ảnh để chọn)"}
-              </span>
-              <Btn
-                className="ml-auto px-3 py-1 text-xs"
-                disabled={selectedCount === 0}
-                onClick={() => setBulkOpen(true)}
-              >
-                Chỉnh danh mục ({selectedCount})
-              </Btn>
-            </>
-          )}
-          {!selectMode && (
-            <span className="text-xs text-gray-400">
-              Nhấp vào ảnh để phóng to xem chi tiết
-            </span>
-          )}
-        </div>
-        {bulkMsg && (
-          <p className={`mb-4 rounded-[10px] px-4 py-3 text-sm ${bulkMsg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
-            {bulkMsg.text}
-          </p>
+            <span>{notice.text}</span>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              className="ml-3 text-xs font-semibold opacity-70 hover:opacity-100"
+            >
+              ✕
+            </button>
+          </div>
         )}
         {orderError && (
-          <p className="mb-4 rounded-[10px] bg-red-50 px-4 py-3 text-sm text-red-600">{orderError}</p>
+          <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{orderError}</p>
         )}
+
+        {/* Photo Grid / States */}
         {loading ? (
-          <div className="flex justify-center py-16"><Spinner /></div>
+          <div className="flex justify-center py-16">
+            <Spinner />
+          </div>
         ) : error ? (
-          <p className="py-8 text-center text-sm text-red-600">{error}</p>
+          <div className="rounded-2xl border border-red-100 bg-red-50/50 py-10 text-center">
+            <p className="text-sm font-medium text-red-600">{error}</p>
+            <Btn
+              variant="ghost"
+              className="mt-3 text-xs"
+              onClick={() => token && load(token)}
+            >
+              Thử tải lại
+            </Btn>
+          </div>
         ) : visiblePhotos.length === 0 ? (
-          <EmptyState title="Chưa có ảnh nào" hint="Chọn ảnh ở trên để tải lên." />
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 py-14 text-center">
+            <p className="text-sm font-semibold text-gray-600">
+              {searchQuery.trim() || statusFilter !== "ALL"
+                ? "Không tìm thấy ảnh phù hợp với bộ lọc hiện tại"
+                : `Chưa có ảnh nào trong "${activeCategoryTitle}"`}
+            </p>
+            <p className="mt-1 text-xs text-gray-400">
+              {searchQuery.trim() || statusFilter !== "ALL"
+                ? "Hãy thử xoá từ khoá tìm kiếm hoặc chuyển bộ lọc trạng thái về Tất cả."
+                : "Bấm nút bên dưới để tải nhiều ảnh trực tiếp vào danh mục này."}
+            </p>
+            {searchQuery.trim() || statusFilter !== "ALL" ? (
+              <Btn
+                variant="ghost"
+                className="mt-4 text-xs"
+                onClick={() => {
+                  setSearchQuery("");
+                  setStatusFilter("ALL");
+                }}
+              >
+                Xoá bộ lọc
+              </Btn>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInput.current?.click()}
+                className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6B8E5A] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#5A7A4B]"
+              >
+                <span>＋</span> Thêm ảnh vào &ldquo;{activeCategoryTitle}&rdquo;
+              </button>
+            )}
+          </div>
         ) : (
           <div
             ref={gridRef}
@@ -623,145 +1111,222 @@ export function AdminPhotosPage() {
               commitReorder();
             }}
           >
-            {/* Thin insertion bar — positioned between cards, never changes layout */}
             {dragId != null && indicator && (
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute z-10 w-1 rounded-full bg-green-500"
+                className="pointer-events-none absolute z-10 w-1 rounded-full bg-[#6B8E5A]"
                 style={{ left: indicator.left, top: indicator.top, height: indicator.height }}
               />
             )}
             {visiblePhotos.map((p) => {
               const isSelected = selected.has(p.id);
               return (
-              <article
-                key={p.id}
-                onDragOver={(e) => overCard(e, p)}
-                onClick={() => {
-                  if (selectMode) {
-                    toggleSelect(p.id);
-                  }
-                }}
-                className={`flex flex-col overflow-hidden rounded-xl border bg-white transition ${
-                  selectMode ? "cursor-pointer" : ""
-                } ${
-                  dragId === p.id
-                    ? "border-dashed border-green-400 opacity-40"
-                    : isSelected && selectMode
-                      ? "border-green-600 ring-2 ring-green-500 shadow-md"
-                      : "border-gray-200 hover:shadow-md"
-                }`}
-              >
-                <div
-                  className={`relative aspect-square overflow-hidden bg-gray-100 ${
-                    !selectMode ? "cursor-zoom-in group" : ""
-                  }`}
-                  onClick={(e) => {
-                    if (!selectMode) {
-                      e.stopPropagation();
-                      setZoomedPhoto(p);
+                <article
+                  key={p.id}
+                  onDragOver={(e) => overCard(e, p)}
+                  onClick={() => {
+                    if (selectMode) {
+                      toggleSelect(p.id);
                     }
                   }}
-                  title={!selectMode ? "Nhấp để xem ảnh phóng to" : undefined}
+                  className={`flex flex-col overflow-hidden rounded-xl border bg-white transition ${
+                    selectMode ? "cursor-pointer" : ""
+                  } ${
+                    dragId === p.id
+                      ? "border-dashed border-[#6B8E5A] opacity-40"
+                      : isSelected && selectMode
+                        ? "border-[#6B8E5A] ring-2 ring-[#6B8E5A] shadow-md"
+                        : "border-gray-200 hover:shadow-md"
+                  }`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary thumbnail URL */}
-                  <img
-                    src={p.thumbnailUrl ?? p.imageUrl}
-                    alt={p.altText ?? p.title ?? "Ảnh"}
-                    className={`h-full w-full object-cover transition-transform duration-200 ${
-                      !selectMode ? "group-hover:scale-[1.03]" : ""
+                  <div
+                    className={`relative aspect-square overflow-hidden bg-gray-100 ${
+                      !selectMode ? "cursor-zoom-in group" : ""
                     }`}
-                    draggable={false}
-                  />
-                  <div className="absolute left-2 top-2 pointer-events-none">
-                    <Badge color={p.status === "PUBLISHED" ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"}>
-                      {p.status === "PUBLISHED" ? "Đã đăng" : "Bản nháp"}
-                    </Badge>
-                  </div>
-                  {selectMode && (
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-checked={isSelected}
-                      aria-label={isSelected ? "Bỏ chọn ảnh" : "Chọn ảnh"}
-                      onClick={(e) => {
+                    onClick={(e) => {
+                      if (!selectMode) {
                         e.stopPropagation();
-                        toggleSelect(p.id);
-                      }}
-                      className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md border text-xs font-bold transition-colors ${
-                        isSelected
-                          ? "border-green-600 bg-green-600 text-white"
-                          : "border-gray-300 bg-white/80 text-transparent hover:border-green-500"
+                        setZoomedPhoto(p);
+                      }
+                    }}
+                    title={!selectMode ? "Nhấp để xem ảnh phóng to" : undefined}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary thumbnail URL */}
+                    <img
+                      src={p.thumbnailUrl ?? p.imageUrl}
+                      alt={p.altText ?? p.title ?? "Ảnh"}
+                      loading="lazy"
+                      className={`h-full w-full object-cover transition-transform duration-200 ${
+                        !selectMode ? "group-hover:scale-[1.03]" : ""
                       }`}
-                    >
-                      ✓
-                    </button>
-                  )}
-                  {p.isFeatured && (
-                    <div className={`absolute right-2 ${selectMode ? "top-9" : "top-2"} pointer-events-none`}>
-                      <Badge color="bg-green-100 text-green-700">Nổi bật</Badge>
+                      draggable={false}
+                    />
+                    <div className="pointer-events-none absolute left-2 top-2">
+                      <Badge
+                        color={
+                          p.status === "PUBLISHED"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-200 text-gray-600"
+                        }
+                      >
+                        {p.status === "PUBLISHED" ? "Đã đăng" : "Bản nháp"}
+                      </Badge>
                     </div>
-                  )}
-                  {selectMode && isSelected && (
-                    <div aria-hidden="true" className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-green-500" />
-                  )}
-                </div>
-                <div className="flex flex-1 flex-col p-3">
-                  <p className="h-5 truncate text-sm font-semibold text-gray-800">{p.title || "(không tiêu đề)"}</p>
-                  <div className="mt-1 flex h-[22px] flex-nowrap gap-1 overflow-hidden">
-                    {p.categories.map((c) => (
-                      <span key={c.id} className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
-                        {categoryLabel(c)}
-                      </span>
-                    ))}
-                  </div>
-                  <p className="mt-1 flex items-center text-[11px] text-gray-400">
-                    Thứ tự: {p.sortOrder} · {formatDate(p.createdAt)}
-                    {/* Drag handle — the ONLY element that starts a drag */}
-                    <span
-                      draggable={!savingOrder && catFilter == null}
-                      onDragStart={(e) => startDrag(e, p)}
-                      onDragEnd={endDrag}
-                      onClick={(e) => e.stopPropagation()}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      title="Kéo để sắp xếp"
-                      className="ml-auto inline-flex cursor-grab items-center justify-center rounded-md px-1.5 py-1 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-500 active:cursor-grabbing"
-                    >
-                      <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true">
-                        {[0, 5, 10].map((y) =>
-                          [3, 7].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y + 2} r="1.4" />),
-                        )}
-                      </svg>
-                    </span>
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
-                    <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={(e) => { e.stopPropagation(); setEditing(p); }}>
-                      Sửa
-                    </Btn>
-                    {p.status === "DRAFT" ? (
-                      <Btn variant="success" className="px-2.5 py-1 text-xs" onClick={(e) => { e.stopPropagation(); act(() => publishPhoto(token!, p.id), "Xuất bản thất bại"); }}>
-                        Xuất bản
-                      </Btn>
-                    ) : (
-                      <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={(e) => { e.stopPropagation(); act(() => unpublishPhoto(token!, p.id), "Ẩn ảnh thất bại"); }}>
-                        Ẩn
-                      </Btn>
+                    {selectMode && (
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={isSelected}
+                        aria-label={isSelected ? "Bỏ chọn ảnh" : "Chọn ảnh"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSelect(p.id);
+                        }}
+                        className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md border text-xs font-bold transition-colors ${
+                          isSelected
+                            ? "border-[#6B8E5A] bg-[#6B8E5A] text-white"
+                            : "border-gray-300 bg-white/80 text-transparent hover:border-[#6B8E5A]"
+                        }`}
+                      >
+                        ✓
+                      </button>
                     )}
-                    <Btn
-                      variant="danger"
-                      className="px-2.5 py-1 text-xs"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm(`Xóa ảnh "${p.title ?? p.id}"? Hành động này không thể hoàn tác.`))
-                          act(() => deletePhoto(token!, p.id), "Xóa ảnh thất bại");
-                      }}
-                    >
-                      Xóa
-                    </Btn>
+                    {p.isFeatured && (
+                      <div
+                        className={`pointer-events-none absolute right-2 ${
+                          selectMode ? "top-9" : "top-2"
+                        }`}
+                      >
+                        <Badge color="bg-green-100 text-green-700">Nổi bật</Badge>
+                      </div>
+                    )}
+                    {selectMode && isSelected && (
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-[#6B8E5A]"
+                      />
+                    )}
                   </div>
-                </div>
-              </article>
-            );
+                  <div className="flex flex-1 flex-col p-3">
+                    <p className="h-5 truncate text-sm font-semibold text-gray-800">
+                      {p.title || "(không tiêu đề)"}
+                    </p>
+                    <div className="mt-1 flex min-h-[22px] flex-wrap gap-1">
+                      {p.categories.length > 0 ? (
+                        p.categories.map((c) => (
+                          <span
+                            key={c.id}
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                              activeCategory === c.id
+                                ? "bg-[#EBF1E7] text-[#4E6B40]"
+                                : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {categoryLabel(c)}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700">
+                          Chưa có danh mục
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1.5 flex items-center text-[11px] text-gray-400">
+                      Thứ tự: {p.sortOrder} · {formatDate(p.createdAt)}
+                      {canReorder && (
+                        <span
+                          draggable
+                          onDragStart={(e) => startDrag(e, p)}
+                          onDragEnd={endDrag}
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          title="Kéo để sắp xếp"
+                          className="ml-auto inline-flex cursor-grab items-center justify-center rounded-md px-1.5 py-1 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-500 active:cursor-grabbing"
+                        >
+                          <svg
+                            width="10"
+                            height="14"
+                            viewBox="0 0 10 14"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            {[0, 5, 10].map((y) =>
+                              [3, 7].map((x) => (
+                                <circle key={`${x}-${y}`} cx={x} cy={y + 2} r="1.4" />
+                              )),
+                            )}
+                          </svg>
+                        </span>
+                      )}
+                    </p>
+                    <div
+                      className="mt-3 flex flex-wrap gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Btn
+                        variant="ghost"
+                        className="px-2.5 py-1 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditing(p);
+                        }}
+                      >
+                        Sửa / Đổi mục
+                      </Btn>
+                      {p.status === "DRAFT" ? (
+                        <Btn
+                          variant="success"
+                          className="px-2.5 py-1 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            act(
+                              () => publishPhoto(token!, p.id),
+                              `Đã xuất bản ảnh "${p.title || `#${p.id}`}".`,
+                              "Xuất bản thất bại",
+                            );
+                          }}
+                        >
+                          Xuất bản
+                        </Btn>
+                      ) : (
+                        <Btn
+                          variant="ghost"
+                          className="px-2.5 py-1 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            act(
+                              () => unpublishPhoto(token!, p.id),
+                              `Đã chuyển ảnh "${p.title || `#${p.id}`}" về Bản nháp.`,
+                              "Ẩn ảnh thất bại",
+                            );
+                          }}
+                        >
+                          Ẩn
+                        </Btn>
+                      )}
+                      <Btn
+                        variant="danger"
+                        className="px-2.5 py-1 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (
+                            window.confirm(
+                              `Xóa ảnh "${p.title ?? p.id}"? Hành động này không thể hoàn tác.`,
+                            )
+                          )
+                            act(
+                              () => deletePhoto(token!, p.id),
+                              `Đã xóa ảnh "${p.title || `#${p.id}`}".`,
+                              "Xóa ảnh thất bại",
+                            );
+                        }}
+                      >
+                        Xóa
+                      </Btn>
+                    </div>
+                  </div>
+                </article>
+              );
             })}
           </div>
         )}
@@ -773,8 +1338,9 @@ export function AdminPhotosPage() {
           photo={editing}
           categories={categories}
           onClose={() => setEditing(null)}
-          onSaved={() => {
+          onSaved={(updatedTitle) => {
             setEditing(null);
+            setNotice({ ok: true, text: `Đã lưu thay đổi cho ảnh "${updatedTitle}".` });
             if (token) load(token);
           }}
           onError={onApiError}
@@ -782,22 +1348,23 @@ export function AdminPhotosPage() {
         />
       )}
 
-      {cropKey && (() => {
-        const item = pending.find((p) => p.key === cropKey);
-        if (!item?.preview) return null;
-        return (
-          <CropEditor
-            src={item.preview}
-            title={`Cắt ảnh: ${item.title || item.file.name}`}
-            initial={item.crop}
-            onClose={() => setCropKey(null)}
-            onApply={(crop) => {
-              patchPending(cropKey, { crop });
-              setCropKey(null);
-            }}
-          />
-        );
-      })()}
+      {cropKey &&
+        (() => {
+          const item = pending.find((p) => p.key === cropKey);
+          if (!item?.preview) return null;
+          return (
+            <CropEditor
+              src={item.preview}
+              title={`Cắt ảnh: ${item.title || item.file.name}`}
+              initial={item.crop}
+              onClose={() => setCropKey(null)}
+              onApply={(crop) => {
+                patchPending(cropKey, { crop });
+                setCropKey(null);
+              }}
+            />
+          );
+        })()}
 
       {bulkOpen && (
         <BulkCategoryModal
@@ -856,7 +1423,9 @@ function BulkCategoryModal({
         type="button"
         onClick={() => toggle(current, c.id, apply)}
         className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-          current.has(c.id) ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          current.has(c.id)
+            ? "bg-[#6B8E5A] text-white"
+            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
         }`}
       >
         {categoryLabel(c)}
@@ -885,7 +1454,9 @@ function BulkCategoryModal({
           </p>
         )}
         <div className="flex justify-end gap-2 pt-2">
-          <Btn variant="ghost" onClick={onClose}>Hủy</Btn>
+          <Btn variant="ghost" onClick={onClose}>
+            Hủy
+          </Btn>
           <Btn
             onClick={() => onApply([...add], [...remove])}
             disabled={busy || (add.size === 0 && remove.size === 0)}
@@ -909,7 +1480,7 @@ function EditPhotoModal({
   photo: Photo;
   categories: Category[];
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (title: string) => void;
   onError: (err: unknown) => boolean;
   token: string | null;
 }) {
@@ -920,6 +1491,7 @@ function EditPhotoModal({
   const [isFeatured, setIsFeatured] = useState(photo.isFeatured);
   const [catIds, setCatIds] = useState<number[]>(photo.categories.map((c) => c.id));
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
   /** Pending crop change: "set" applies fractions, "cleared" removes the crop. */
   const [cropAction, setCropAction] = useState<
@@ -946,18 +1518,24 @@ function EditPhotoModal({
   const save = async () => {
     if (!token) return;
     setSaving(true);
+    setSaveError(null);
     try {
       await updatePhoto(token, photo.id, {
-        title, description, altText, sortOrder, isFeatured, categoryIds: catIds,
+        title,
+        description,
+        altText,
+        sortOrder,
+        isFeatured,
+        categoryIds: catIds,
         ...(cropAction.kind === "cleared"
           ? { clearCrop: true }
           : cropAction.kind === "set"
             ? { ...cropAction.crop }
             : {}),
       });
-      onSaved();
+      onSaved(title || `#${photo.id}`);
     } catch (err) {
-      if (!onError(err)) alert("Lưu ảnh thất bại.");
+      if (!onError(err)) setSaveError(`Lưu ảnh thất bại — ${describeApiError(err)}`);
     } finally {
       setSaving(false);
     }
@@ -966,13 +1544,21 @@ function EditPhotoModal({
   return (
     <Modal open={!!photo} onClose={onClose} title={`Chỉnh sửa: ${photo.title ?? `#${photo.id}`}`}>
       <div className="space-y-4">
+        {saveError && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{saveError}</p>
+        )}
         <div>
           <label className={labelCls}>Tiêu đề</label>
           <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
         <div>
           <label className={labelCls}>Mô tả</label>
-          <textarea className={inputCls} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+          <textarea
+            className={inputCls}
+            rows={3}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
         </div>
         <div>
           <label className={labelCls}>Alt text</label>
@@ -981,17 +1567,27 @@ function EditPhotoModal({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Thứ tự hiển thị</label>
-            <input type="number" className={inputCls} value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} />
+            <input
+              type="number"
+              className={inputCls}
+              value={sortOrder}
+              onChange={(e) => setSortOrder(Number(e.target.value))}
+            />
           </div>
           <div className="flex items-end pb-1">
             <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={isFeatured} onChange={(e) => setIsFeatured(e.target.checked)} className="h-4 w-4 accent-green-600" />
+              <input
+                type="checkbox"
+                checked={isFeatured}
+                onChange={(e) => setIsFeatured(e.target.checked)}
+                className="h-4 w-4 accent-[#6B8E5A]"
+              />
               Ảnh nổi bật
             </label>
           </div>
         </div>
         <div>
-          <label className={labelCls}>Danh mục</label>
+          <label className={labelCls}>Danh mục (có thể chọn nhiều)</label>
           <div className="flex flex-wrap gap-1.5">
             {categories.map((c) => (
               <button
@@ -999,7 +1595,9 @@ function EditPhotoModal({
                 type="button"
                 onClick={() => toggleCat(c.id)}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  catIds.includes(c.id) ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  catIds.includes(c.id)
+                    ? "bg-[#6B8E5A] text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
                 {categoryLabel(c)}
@@ -1028,8 +1626,12 @@ function EditPhotoModal({
           </Btn>
         </div>
         <div className="flex justify-end gap-2 pt-2">
-          <Btn variant="ghost" onClick={onClose}>Hủy</Btn>
-          <Btn onClick={save} disabled={saving}>{saving ? "Đang lưu…" : "Lưu thay đổi"}</Btn>
+          <Btn variant="ghost" onClick={onClose}>
+            Hủy
+          </Btn>
+          <Btn onClick={save} disabled={saving}>
+            {saving ? "Đang lưu…" : "Lưu thay đổi"}
+          </Btn>
         </div>
       </div>
       {cropOpen && (
@@ -1094,7 +1696,7 @@ function PhotoZoomModal({
             type="button"
             onClick={onPrev}
             aria-label="Ảnh trước"
-            className="absolute -left-12 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-xl font-bold text-white transition hover:bg-white/40 md:-left-16"
+            className="absolute -left-12 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-xl font-bold text-white transition hover:bg-white/40 md:-left-16"
           >
             ‹
           </button>
@@ -1105,7 +1707,7 @@ function PhotoZoomModal({
             type="button"
             onClick={onNext}
             aria-label="Ảnh tiếp theo"
-            className="absolute -right-12 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-xl font-bold text-white transition hover:bg-white/40 md:-right-16"
+            className="absolute -right-12 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-xl font-bold text-white transition hover:bg-white/40 md:-right-16"
           >
             ›
           </button>
@@ -1115,13 +1717,13 @@ function PhotoZoomModal({
           {/* eslint-disable-next-line @next/next/no-img-element -- Full-size preview in Admin */}
           <img
             src={photo.imageUrl}
-            alt={photo.altText ?? photo.title ?? "Ảnh"}
+            alt={photo.altText ?? pTitle(photo)}
             className="max-h-[82vh] max-w-[90vw] object-contain"
           />
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-white/80">
-          <p className="font-semibold text-sm text-white">{photo.title || "(không tiêu đề)"}</p>
+          <p className="text-sm font-semibold text-white">{pTitle(photo)}</p>
           <div className="flex flex-wrap items-center gap-1.5">
             {photo.categories.map((c) => (
               <span key={c.id} className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs text-white">
@@ -1134,4 +1736,8 @@ function PhotoZoomModal({
       </div>
     </div>
   );
+}
+
+function pTitle(photo: Photo): string {
+  return photo.title || "(không tiêu đề)";
 }

@@ -42,6 +42,10 @@ export function completeBooking(token: string, id: number): Promise<Booking> {
   return apiFetch<Booking>(`/api/admin/bookings/${id}/complete`, { method: "POST", token });
 }
 
+export function deleteBooking(token: string, id: number): Promise<void> {
+  return apiFetch<void>(`/api/admin/bookings/${id}`, { method: "DELETE", token });
+}
+
 // ---------- Admin blocked slots ----------
 
 export interface BlockedSlot {

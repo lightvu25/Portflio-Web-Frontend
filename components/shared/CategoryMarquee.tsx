@@ -104,7 +104,19 @@ export function CategoryMarquee({
     null,
   );
   const [copies, setCopies] = useState(2);
+  const [inView, setInView] = useState(true);
   const trackRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const viewport = trackRef.current?.parentElement;
+    if (!viewport || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { rootMargin: "100px 0px" },
+    );
+    obs.observe(viewport);
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     if (availableCategories) return;
@@ -147,7 +159,9 @@ export function CategoryMarquee({
     >
       <div
         ref={trackRef}
-        className="animate-marquee-track flex w-max [--duration:32s] group-hover:[animation-play-state:paused]"
+        className={`animate-marquee-track flex w-max [--duration:32s] group-hover:[animation-play-state:paused] ${
+          inView ? "" : "[animation-play-state:paused]"
+        }`}
         style={{ "--copies": copies } as React.CSSProperties}
       >
         {Array.from({ length: copies }, (_, i) => (

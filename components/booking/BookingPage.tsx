@@ -273,7 +273,7 @@ function BookingForm({
     <main className="flex min-h-screen w-full flex-col bg-dark-03 text-absolutewhite">
       <section className="flex-1">
         <div className="mx-auto max-w-[900px] px-5 py-14 md:px-10">
-          <Reveal from="down">
+          <Reveal from="up">
             <p className="font-medium text-sm font-medium uppercase tracking-[0.18em] text-grey-40">
               Đặt lịch
             </p>
@@ -391,7 +391,7 @@ function BookingForm({
                         onClick={handleCopyMessage}
                         aria-label="Sao chép tin nhắn"
                         title="Sao chép tin nhắn"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-brand-55 text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-105 hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-brand-55 text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-105 hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                       >
                         <CopyIcon size={18} />
                       </button>
@@ -638,7 +638,7 @@ function BookingForm({
                 <button
                   type="submit"
                   disabled={state === "sending" || packages.length === 0}
-                  className="w-full rounded-[10px] bg-brand-55 py-3.5 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.01] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 disabled:opacity-50"
+                  className="w-full rounded-[10px] bg-brand-55 py-3.5 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.01] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 disabled:opacity-50"
                 >
                   {state === "sending" ? "Đang gửi…" : "Gửi yêu cầu đặt lịch"}
                 </button>

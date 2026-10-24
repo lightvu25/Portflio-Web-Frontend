@@ -39,7 +39,7 @@ function QuoteIcon({ className }: { className?: string }) {
 }
 
 const cardHover =
-  "transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/50";
+  "transition-[transform,box-shadow] duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/50";
 
 /** Feedback screenshot card — clicking the image opens the full-size view. */
 function PhotoCard({
@@ -228,6 +228,21 @@ export function FeedbackMarquee({
   const startPosRef = useRef(0);
   const pausedUntilRef = useRef(0);
   const initializedRef = useRef(false);
+  const inViewRef = useRef(true);
+
+  // Pause RAF work when the marquee is scrolled out of the viewport.
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        inViewRef.current = entry.isIntersecting;
+      },
+      { rootMargin: "120px 0px" },
+    );
+    obs.observe(viewport);
+    return () => obs.disconnect();
+  }, []);
 
   // Measure one copy; derive repeat count; place the viewport inside the middle copy.
   useLayoutEffect(() => {
@@ -276,6 +291,7 @@ export function FeedbackMarquee({
       const viewport = viewportRef.current;
       const active =
         viewport &&
+        inViewRef.current &&
         copyWidthRef.current > 0 &&
         !pressedRef.current &&
         now >= pausedUntilRef.current;

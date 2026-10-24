@@ -1,8 +1,10 @@
 import { Reveal } from "@/components/shared/Reveal";
 import { DataFetchError } from "@/components/shared/DataFetchError";
+import { CameraIntro } from "@/components/home/CameraIntro";
 import { HeroSection } from "@/components/home/HeroSection";
 import { PhotographyMarquee } from "@/components/home/PhotographyMarquee";
 import { FeaturedCollage } from "@/components/home/FeaturedCollage";
+import { StickyGridSection } from "@/components/home/StickyGridSection";
 import { AboutSection } from "@/components/home/AboutSection";
 import { ServicesPreviewSection } from "@/components/home/ServicesPreviewSection";
 import { PortfolioPreviewSection } from "@/components/home/PortfolioPreviewSection";
@@ -35,28 +37,33 @@ export async function HomePage() {
   // Spread photos across sections so the same few images don't repeat.
   const list = photos.data;
   const collage = list.slice(0, 5);
-  const preview = list.slice(5, 13);
+  const stickyGrid = list.length >= 17 ? list.slice(5, 17) : list.slice(0, 12);
+  const preview = list.length >= 17 ? list.slice(11, 23) : list.slice(5, 13);
 
   return (
     <main className="flex min-h-screen w-full flex-col bg-dark-03 text-absolutewhite">
-      <Reveal>
-        <HeroSection site={site} />
-      </Reveal>
-      <PhotographyMarquee availableCategories={categories.map((c) => c.name)} />
-      {/* Photo-driven sections: on fetch failure show a single retry block
-          instead of empty gaps; about/services still render their own content. */}
-      {photos.ok ? (
-        <Reveal from="up">
-          <FeaturedCollage photos={collage} />
+      <CameraIntro />
+      <div className="relative z-10 bg-dark-03">
+        <Reveal>
+          <HeroSection site={site} />
         </Reveal>
-      ) : (
-        <section aria-label="Lỗi tải ảnh" className="border-b border-dark-12">
-          <div className="mx-auto max-w-[1400px] px-5 py-10 md:px-10 md:py-16">
-            <DataFetchError />
-          </div>
-        </section>
-      )}
-      <Reveal from="left">
+        <PhotographyMarquee availableCategories={categories.map((c) => c.name)} />
+        {/* Photo-driven sections: on fetch failure show a single retry block
+            instead of empty gaps; about/services still render their own content. */}
+        {photos.ok ? (
+          <Reveal from="up">
+            <FeaturedCollage photos={collage} />
+          </Reveal>
+        ) : (
+          <section aria-label="Lỗi tải ảnh" className="border-b border-dark-12">
+            <div className="mx-auto max-w-[1400px] px-5 py-10 md:px-10 md:py-16">
+              <DataFetchError />
+            </div>
+          </section>
+        )}
+      </div>
+      {photos.ok && <StickyGridSection photos={stickyGrid} />}
+      <Reveal from="up">
         <AboutSection site={site} />
       </Reveal>
       <Reveal from="up">
@@ -70,7 +77,7 @@ export async function HomePage() {
       <Reveal from="up">
         <TestimonialsSection testimonials={feedback} photos={feedbackPhotos} />
       </Reveal>
-      <Reveal from="down">
+      <Reveal from="up">
         <ContactCtaSection site={site} />
       </Reveal>
     </main>

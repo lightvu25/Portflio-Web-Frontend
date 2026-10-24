@@ -1,6 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CONTACT, FacebookIcon, InstagramIcon, MailIcon, MessengerIcon, PhoneIcon } from "@/components/shared/contact";
+import {
+  CONTACT,
+  FacebookIcon,
+  InstagramIcon,
+  MailIcon,
+  PhoneIcon,
+  resolveFacebookHref,
+  resolveInstagramHref,
+  resolveZaloHref,
+  resolveZaloPhone,
+  ZaloIcon,
+} from "@/components/shared/contact";
 import type { SiteSettings } from "@/types/site";
 
 const cardTitle =
@@ -25,12 +36,17 @@ export function AboutSection({ site }: { site: SiteSettings | null }) {
   const bio = site?.bio?.trim() ? site.bio.trim() : DEFAULT_BIO;
   const experience = site?.experience?.trim() ? site.experience.trim() : null;
 
+  const facebookHref = resolveFacebookHref(site?.facebookUrl);
+  const instagramHref = resolveInstagramHref(site?.instagramUrl);
+  const zaloPhone = resolveZaloPhone(site?.messengerUrl);
+  const zaloHref = resolveZaloHref(site?.messengerUrl);
+
   // Same contact channels as the site footer (shared source: lib contact.tsx).
   const socials = [
-    { label: "Facebook", url: CONTACT.facebook, Icon: FacebookIcon },
-    { label: "Instagram", url: CONTACT.instagram, Icon: InstagramIcon },
-    { label: "Messenger", url: site?.messengerUrl, Icon: MessengerIcon },
-  ].filter((s) => s.url);
+    { label: "Facebook", url: facebookHref, Icon: FacebookIcon },
+    { label: "Instagram", url: instagramHref, Icon: InstagramIcon },
+    { label: `Zalo ${zaloPhone}`, url: zaloHref, Icon: ZaloIcon },
+  ];
 
   return (
     <section aria-label="Giới thiệu nhiếp ảnh gia" className="border-b border-dark-12">
@@ -121,7 +137,7 @@ export function AboutSection({ site }: { site: SiteSettings | null }) {
                 ))}
                 <Link
                   href="/booking"
-                  className="ml-auto rounded-[10px] bg-brand-55 px-6 py-2.5 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.03] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2"
+                  className="ml-auto rounded-[10px] bg-brand-55 px-6 py-2.5 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.03] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2"
                 >
                   Đặt lịch ngay
                 </Link>

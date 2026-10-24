@@ -66,7 +66,7 @@ describe("booking-message helper", () => {
 
   it("exposes only confirmed social contact links without fabricated Zalo URLs", () => {
     expect(SOCIAL_CONTACT_LINKS.facebook).toBe("https://www.facebook.com/haibaudepzai");
-    expect(SOCIAL_CONTACT_LINKS.instagram).toBe("https://www.instagram.com/bauu.chupchoet");
+    expect(SOCIAL_CONTACT_LINKS.instagram).toBe("https://www.instagram.com/_bauu.chupchoet_/");
     expect("zalo" in SOCIAL_CONTACT_LINKS).toBe(false);
   });
 });

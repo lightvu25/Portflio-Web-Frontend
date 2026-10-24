@@ -15,3 +15,7 @@ export function getPayments(token: string): Promise<PaymentResponse[]> {
 export function markPaymentPaid(token: string, id: number): Promise<PaymentResponse> {
   return apiFetch<PaymentResponse>(`/api/admin/payments/${id}/mark-paid`, { method: "POST", token });
 }
+
+export function deletePayment(token: string, id: number): Promise<void> {
+  return apiFetch<void>(`/api/admin/payments/${id}`, { method: "DELETE", token });
+}

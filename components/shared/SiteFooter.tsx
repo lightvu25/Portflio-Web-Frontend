@@ -5,7 +5,16 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CategoryMarquee } from "@/components/shared/CategoryMarquee";
 import { CtaArrowLink } from "@/components/shared/CtaArrowLink";
-import { CONTACT, FacebookIcon, InstagramIcon } from "@/components/shared/contact";
+import {
+  CONTACT,
+  FacebookIcon,
+  InstagramIcon,
+  resolveFacebookHref,
+  resolveInstagramHref,
+  resolveZaloHref,
+  resolveZaloPhone,
+  ZaloIcon,
+} from "@/components/shared/contact";
 import { getCategories } from "@/lib/api/categories";
 import { getSiteSettings } from "@/lib/api/site";
 import type { Category } from "@/types/category";
@@ -37,6 +46,11 @@ export function SiteFooter() {
 
   // Admin pages render their own chrome.
   if (pathname.startsWith("/admin")) return null;
+
+  const facebookHref = resolveFacebookHref(site?.facebookUrl);
+  const instagramHref = resolveInstagramHref(site?.instagramUrl);
+  const zaloPhone = resolveZaloPhone(site?.messengerUrl);
+  const zaloHref = resolveZaloHref(site?.messengerUrl);
 
   return (
     <footer className="border-t border-dark-12">
@@ -113,11 +127,14 @@ export function SiteFooter() {
             <Link href="/booking" className={`${linkCls} text-xs`}>Đặt lịch</Link>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
-            <a href={CONTACT.instagram} target="_blank" rel="noreferrer" aria-label="Instagram" className={socialBtn}>
+            <a href={instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className={socialBtn}>
               <InstagramIcon />
             </a>
-            <a href={CONTACT.facebook} target="_blank" rel="noreferrer" aria-label="Facebook" className={socialBtn}>
+            <a href={facebookHref} target="_blank" rel="noreferrer" aria-label="Facebook" className={socialBtn}>
               <FacebookIcon />
+            </a>
+            <a href={zaloHref} target="_blank" rel="noreferrer" aria-label={`Zalo ${zaloPhone}`} className={socialBtn}>
+              <ZaloIcon />
             </a>
             <span aria-hidden="true" className="text-dark-20">|</span>
             <a href={CONTACT.mailto} className={`${linkCls} text-xs`}>

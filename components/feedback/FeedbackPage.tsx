@@ -49,7 +49,7 @@ export function FeedbackPage({ feedback, photos }: { feedback: Feedback[]; photo
     <main className="flex min-h-screen w-full flex-col bg-dark-03 text-absolutewhite">
       <section className="border-b border-dark-12">
         <div className="mx-auto max-w-[1400px] px-5 py-14 md:px-10 md:py-20">
-          <Reveal from="down">
+          <Reveal from="up">
             <p className="text-sm font-medium uppercase tracking-[0.18em] text-grey-40">Cảm nhận</p>
             <h1 className="mt-3 text-4xl font-semibold text-absolutewhite md:text-6xl">
               Khách hàng nói gì về Bấu?
@@ -112,7 +112,7 @@ export function FeedbackPage({ feedback, photos }: { feedback: Feedback[]; photo
                 <button
                   type="submit"
                   disabled={state === "sending"}
-                  className="w-full rounded-[10px] bg-brand-55 py-3 font-medium text-sm text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.01] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2 disabled:opacity-50"
+                  className="w-full rounded-[10px] bg-brand-55 py-3 font-medium text-sm text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.01] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2 disabled:opacity-50"
                 >
                   {state === "sending" ? "Đang gửi…" : "Gửi cảm nhận"}
                 </button>

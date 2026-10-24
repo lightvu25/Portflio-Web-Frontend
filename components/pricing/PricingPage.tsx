@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Reveal } from "@/components/shared/Reveal";
+import { gsap, useGSAP } from "@/lib/gsap";
 import { formatVnd, sessionTypeLabel } from "@/lib/labels";
 import type { Photo } from "@/types/photo";
 import type { PricingPackage } from "@/types/pricing";
@@ -71,6 +72,7 @@ export function PricingPage({
   photos?: Photo[];
 }) {
   const [group, setGroup] = useState(1);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   /** Representative image per group: first package cover in that group. */
   const groupCovers = useMemo(() => {
@@ -82,22 +84,58 @@ export function PricingPage({
   }, [packages]);
 
   const fallbackImage = photos[0]?.imageUrl ?? null;
-  const groupPackages = packages.filter((p) => p.groupSize === group);
+  const groupPackages = useMemo(
+    () => packages.filter((p) => p.groupSize === group),
+    [packages, group],
+  );
+
+  // Smooth staggered GSAP entrance whenever the selected group changes.
+  useGSAP(
+    () => {
+      const container = gridRef.current;
+      if (!container) return;
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const cards = gsap.utils.toArray<HTMLElement>(".pricing-card", container);
+      if (cards.length === 0) return;
+
+      if (reduceMotion) {
+        gsap.set(cards, { autoAlpha: 1, y: 0, clearProps: "transform,willChange" });
+        return;
+      }
+
+      gsap.fromTo(
+        cards,
+        { autoAlpha: 0, y: 20, willChange: "transform, opacity" },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.45,
+          stagger: 0.06,
+          ease: "power3.out",
+          overwrite: "auto",
+          clearProps: "transform,willChange",
+        },
+      );
+    },
+    { scope: gridRef, dependencies: [group] },
+  );
 
   return (
     <main className="flex min-h-screen w-full flex-col bg-dark-03 text-absolutewhite">
       <section className="border-b border-dark-12">
         <div className="mx-auto max-w-[1400px] px-5 py-14 md:px-10 md:py-20">
-          <p className="font-medium text-sm font-medium uppercase tracking-[0.18em] text-grey-40">
-            Dịch vụ
-          </p>
-          <h1 className="mt-3 font-semibold text-4xl font-semibold text-absolutewhite md:text-6xl">
-            Bảng giá chụp ảnh
-          </h1>
-          <p className="mt-4 max-w-xl text-sm leading-7 text-grey-50">
-            Gói chụp cho cá nhân và nhóm nhỏ. Đặt cọc {formatVnd(deposit)} để giữ lịch —
-            phần còn lại thanh toán sau buổi chụp.
-          </p>
+          <Reveal from="up">
+            <p className="font-medium text-sm font-medium uppercase tracking-[0.18em] text-grey-40">
+              Dịch vụ
+            </p>
+            <h1 className="mt-3 font-semibold text-4xl font-semibold text-absolutewhite md:text-6xl">
+              Bảng giá chụp ảnh
+            </h1>
+            <p className="mt-4 max-w-xl text-sm leading-7 text-grey-50">
+              Gói chụp cho cá nhân và nhóm nhỏ. Đặt cọc {formatVnd(deposit)} để giữ lịch —
+              phần còn lại thanh toán sau buổi chụp.
+            </p>
+          </Reveal>
         </div>
       </section>
 
@@ -118,7 +156,7 @@ export function PricingPage({
                   type="button"
                   onClick={() => setGroup(g.size)}
                   aria-pressed={active}
-                  className={`group overflow-hidden rounded-[14px] text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 ${
+                  className={`group overflow-hidden rounded-[14px] text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 ${
                     active
                       ? "bg-brand-55/15"
                       : "bg-dark-08 hover:bg-dark-15"
@@ -152,7 +190,7 @@ export function PricingPage({
                     </div>
                     <span
                       aria-hidden="true"
-                      className={`shrink-0 text-sm transition-transform ${active ? "text-brand-55" : "text-grey-40 group-hover:translate-x-0.5"}`}
+                      className={`shrink-0 text-sm transition-transform duration-200 ${active ? "text-brand-55" : "text-grey-40 group-hover:translate-x-0.5"}`}
                     >
                       →
                     </span>
@@ -166,53 +204,57 @@ export function PricingPage({
 
       {/* Packages of the selected group */}
       <section className="flex-1" aria-live="polite">
-        <div className="mx-auto grid max-w-[1400px] gap-5 px-5 py-12 sm:grid-cols-2 md:px-10 lg:grid-cols-3">
-          {groupPackages.map((p, i) => {
+        <div
+          ref={gridRef}
+          className="mx-auto grid max-w-[1400px] gap-5 px-5 py-12 sm:grid-cols-2 md:px-10 lg:grid-cols-3"
+        >
+          {groupPackages.map((p) => {
             const img = packageImage(p, groupCovers, fallbackImage ?? undefined);
             return (
-            <Reveal key={p.id} delay={i * 90} from="up">
-            <article className="flex h-full flex-col overflow-hidden rounded-[14px] bg-dark-08">
-              {img ? (
-                <div className="relative aspect-[4/3] w-full">
-                  <Image
-                    src={img}
-                    alt={`${p.name} — ${sessionTypeLabel[p.sessionType]}`}
-                    fill
-                    quality={100}
-                    sizes="(min-width: 1280px) 480px, (min-width: 1024px) 38vw, (min-width: 640px) 50vw, 100vw"
-                    className="object-cover"
-                  />
-                </div>
-              ) : (
-                <div aria-hidden="true" className="aspect-[4/3] w-full bg-dark-12" />
-              )}
-              <div className="flex flex-1 flex-col p-6">
-              <p className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-brand-90">
-                {sessionTypeLabel[p.sessionType]}
-              </p>
-              <h2 className="mt-3 font-semibold text-xl font-semibold text-absolutewhite">
-                {p.name}
-              </h2>
-              <p className="mt-2 font-semibold text-2xl font-semibold text-brand-55">
-                {formatVnd(p.price)}
-              </p>
-              <p className="mt-1 text-xs text-grey-40">
-                cho {p.groupSize} người
-              </p>
-              {p.description && (
-                <p className="mt-5 flex-1 text-sm leading-6 text-grey-50">
-                  {p.description}
-                </p>
-              )}
-              <Link
-                href={`/booking?package=${p.id}`}
-                className="mt-6 block rounded-[10px] bg-brand-55 py-2.5 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2"
+              <article
+                key={p.id}
+                className="pricing-card flex h-full flex-col overflow-hidden rounded-[14px] bg-dark-08"
               >
-                Đặt gói này
-              </Link>
-              </div>
-            </article>
-            </Reveal>
+                {img ? (
+                  <div className="relative aspect-[4/3] w-full">
+                    <Image
+                      src={img}
+                      alt={`${p.name} — ${sessionTypeLabel[p.sessionType]}`}
+                      fill
+                      quality={100}
+                      sizes="(min-width: 1280px) 480px, (min-width: 1024px) 38vw, (min-width: 640px) 50vw, 100vw"
+                      className="object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div aria-hidden="true" className="aspect-[4/3] w-full bg-dark-12" />
+                )}
+                <div className="flex flex-1 flex-col p-6">
+                  <p className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-brand-90">
+                    {sessionTypeLabel[p.sessionType]}
+                  </p>
+                  <h2 className="mt-3 font-semibold text-xl font-semibold text-absolutewhite">
+                    {p.name}
+                  </h2>
+                  <p className="mt-2 font-semibold text-2xl font-semibold text-brand-55">
+                    {formatVnd(p.price)}
+                  </p>
+                  <p className="mt-1 text-xs text-grey-40">
+                    cho {p.groupSize} người
+                  </p>
+                  {p.description && (
+                    <p className="mt-5 flex-1 text-sm leading-6 text-grey-50">
+                      {p.description}
+                    </p>
+                  )}
+                  <Link
+                    href={`/booking?package=${p.id}`}
+                    className="mt-6 block rounded-[10px] bg-brand-55 py-2.5 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2"
+                  >
+                    Đặt gói này
+                  </Link>
+                </div>
+              </article>
             );
           })}
           {groupPackages.length === 0 && (

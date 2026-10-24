@@ -57,10 +57,13 @@ export function SiteHeader() {
         >
           <span
             aria-hidden="true"
-            className={`absolute top-1.5 bottom-1.5 rounded-full bg-dark-08 transition-[left,width,opacity] duration-300 ease-out ${
+            className={`absolute left-0 top-1.5 bottom-1.5 rounded-full bg-dark-08 transition-[transform,width,opacity] duration-300 ease-out will-change-transform ${
               pill ? "opacity-100" : "opacity-0"
             }`}
-            style={{ left: pill?.left ?? 0, width: pill?.width ?? 0 }}
+            style={{
+              transform: `translate3d(${pill?.left ?? 0}px, 0, 0)`,
+              width: pill?.width ?? 0,
+            }}
           />
           {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -83,7 +86,7 @@ export function SiteHeader() {
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <Link
             href="/booking"
-            className="inline-flex items-center justify-center rounded-full bg-brand-55 px-4 py-2 font-medium text-xs text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-[1.03] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2 sm:px-5 sm:py-2.5 sm:text-sm md:px-6 md:py-3"
+            className="inline-flex items-center justify-center rounded-full bg-brand-55 px-4 py-2 font-medium text-xs text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.03] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2 sm:px-5 sm:py-2.5 sm:text-sm md:px-6 md:py-3"
           >
             Liên hệ
           </Link>

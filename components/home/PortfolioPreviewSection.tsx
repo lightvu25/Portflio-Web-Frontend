@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Photo } from "@/types/photo";
 
 const cardWidth =
@@ -16,7 +16,7 @@ function PhotoGroup({ photos }: { photos: Photo[] }) {
           key={p.id}
           href={`/gallery/${p.id}`}
           aria-label={p.altText ?? p.title ?? "Xem ảnh"}
-          className={`group/img relative block aspect-[4/5] shrink-0 overflow-hidden rounded-[14px] bg-dark-08 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/50 ${cardWidth}`}
+          className={`group/img relative block aspect-[4/5] shrink-0 overflow-hidden rounded-[14px] bg-dark-08 transition-[transform,box-shadow] duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/50 ${cardWidth}`}
         >
           <Image
             src={p.imageUrl}
@@ -36,11 +36,23 @@ function PhotoGroup({ photos }: { photos: Photo[] }) {
  * Portfolio preview — heading + "Xem tất cả", then an auto-sliding photo
  * band that loops seamlessly using the same technique as CategoryMarquee:
  * enough identical copies to cover the viewport plus one group, translated
- * by exactly one group width (pauses on hover).
+ * by exactly one group width (pauses on hover and when off-screen).
  */
 export function PortfolioPreviewSection({ photos }: { photos: Photo[] }) {
   const [copies, setCopies] = useState(2);
+  const [inView, setInView] = useState(true);
   const trackRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const viewport = trackRef.current?.parentElement;
+    if (!viewport || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { rootMargin: "120px 0px" },
+    );
+    obs.observe(viewport);
+    return () => obs.disconnect();
+  }, []);
 
   // Copies needed = ceil(viewport / groupWidth) + 1 (min 2), so the visible
   // window is always covered through a full one-group shift.
@@ -87,7 +99,9 @@ export function PortfolioPreviewSection({ photos }: { photos: Photo[] }) {
       <div className="group relative mt-4 overflow-hidden py-6 pb-14 md:pb-20">
         <div
           ref={trackRef}
-          className="animate-marquee-track flex w-max [--duration:60s] group-hover:[animation-play-state:paused]"
+          className={`animate-marquee-track flex w-max [--duration:60s] group-hover:[animation-play-state:paused] ${
+            inView ? "" : "[animation-play-state:paused]"
+          }`}
           style={{ "--copies": copies } as React.CSSProperties}
         >
           {Array.from({ length: copies }, (_, i) =>
