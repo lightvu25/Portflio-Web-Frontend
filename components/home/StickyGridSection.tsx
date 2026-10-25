@@ -75,8 +75,19 @@ export function StickyGridSection({
 
       const items = Array.from(grid.querySelectorAll<HTMLElement>("[data-grid-item]"));
       const statEls = Array.from(statsContainer.querySelectorAll<HTMLElement>("[data-stat-item]"));
+      const statValueEls = statEls.map((el) =>
+        el.querySelector<HTMLElement>("[data-stat-value]"),
+      );
+      const statTargets = statValueEls.map((el) => Number(el?.dataset.target ?? 0));
+      const statSuffixes = statValueEls.map((el) => el?.dataset.suffix ?? "");
       const ctaEls = Array.from(ctaContainer.querySelectorAll<HTMLElement>("[data-cta-item]"));
       if (items.length === 0) return;
+
+      const setStatText = (idx: number, raw: number) => {
+        const el = statValueEls[idx];
+        if (!el) return;
+        el.textContent = `${Math.round(raw)}${statSuffixes[idx]}`;
+      };
 
       const mm = gsap.matchMedia();
 
@@ -92,6 +103,35 @@ export function StickyGridSection({
         gsap.set(greeting, { autoAlpha: 1, yPercent: 0 });
         gsap.set(statEls, { autoAlpha: 0, y: 24 });
         gsap.set(ctaEls, { autoAlpha: 0, y: 24 });
+
+        const counterValues = statTargets.map(() => ({ val: 0 }));
+        const counterActive = statTargets.map(() => false);
+        const counterTweens: (gsap.core.Tween | null)[] = statTargets.map(() => null);
+        statTargets.forEach((_, idx) => setStatText(idx, 0));
+
+        const syncStatCounters = () => {
+          statEls.forEach((el, idx) => {
+            const opacity = Number(gsap.getProperty(el, "opacity")) || 0;
+            if (opacity > 0.05 && !counterActive[idx]) {
+              counterActive[idx] = true;
+              counterTweens[idx]?.kill();
+              counterValues[idx].val = 0;
+              setStatText(idx, 0);
+              counterTweens[idx] = gsap.to(counterValues[idx], {
+                val: statTargets[idx],
+                duration: 0.85,
+                ease: "power2.out",
+                onUpdate: () => setStatText(idx, counterValues[idx].val),
+              });
+            } else if (opacity <= 0.02 && counterActive[idx]) {
+              counterActive[idx] = false;
+              counterTweens[idx]?.kill();
+              counterTweens[idx] = null;
+              counterValues[idx].val = 0;
+              setStatText(idx, 0);
+            }
+          });
+        };
 
         // Bucket the 12 grid items into 3 columns (index % 3)
         const columns: HTMLElement[][] = Array.from({ length: NUM_COLUMNS }, () => []);
@@ -141,6 +181,7 @@ export function StickyGridSection({
         };
 
         const mainTimeline = gsap.timeline({
+          onUpdate: syncStatCounters,
           scrollTrigger: {
             trigger: block,
             start: () => `top top+=${headerH}`,
@@ -199,10 +240,12 @@ export function StickyGridSection({
 
         return () => {
           ScrollTrigger.removeEventListener("refreshInit", measureHeader);
+          counterTweens.forEach((t) => t?.kill());
         };
       });
 
       mm.add("(prefers-reduced-motion: reduce)", () => {
+        statTargets.forEach((target, idx) => setStatText(idx, target));
         gsap.set([wrapper, greeting, ...statEls, ...ctaEls, grid, ...items], {
           clearProps: "all",
         });
@@ -213,7 +256,15 @@ export function StickyGridSection({
         mm.revert();
       };
     },
-    { scope: blockRef, dependencies: [gridPhotos.length] },
+    {
+      scope: blockRef,
+      dependencies: [
+        gridPhotos.length,
+        stats.clientsCount,
+        stats.experienceYears,
+        stats.conceptsCount,
+      ],
+    },
   );
 
   if (gridPhotos.length === 0) return null;
@@ -236,15 +287,39 @@ export function StickyGridSection({
             {/* Stage 2: Sequential stats */}
             <div ref={statsRef} data-stage="stats" className={styles.stats}>
               <div data-stat-item className={styles.statItem}>
-                <span className={styles.statValue}>{stats.clientsCount}+</span>
+                <span
+                  data-stat-value
+                  data-target={stats.clientsCount}
+                  data-suffix="+"
+                  aria-label={`${stats.clientsCount}+`}
+                  className={styles.statValue}
+                >
+                  {stats.clientsCount}+
+                </span>
                 <span className={styles.statLabel}>khách đã chụp</span>
               </div>
               <div data-stat-item className={styles.statItem}>
-                <span className={styles.statValue}>{stats.experienceYears}</span>
+                <span
+                  data-stat-value
+                  data-target={stats.experienceYears}
+                  data-suffix=""
+                  aria-label={`${stats.experienceYears}`}
+                  className={styles.statValue}
+                >
+                  {stats.experienceYears}
+                </span>
                 <span className={styles.statLabel}>năm kinh nghiệm</span>
               </div>
               <div data-stat-item className={styles.statItem}>
-                <span className={styles.statValue}>{stats.conceptsCount}+</span>
+                <span
+                  data-stat-value
+                  data-target={stats.conceptsCount}
+                  data-suffix="+"
+                  aria-label={`${stats.conceptsCount}+`}
+                  className={styles.statValue}
+                >
+                  {stats.conceptsCount}+
+                </span>
                 <span className={styles.statLabel}>concept đã chụp</span>
               </div>
             </div>
