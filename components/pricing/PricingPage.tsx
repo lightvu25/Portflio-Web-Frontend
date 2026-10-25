@@ -45,33 +45,6 @@ const SURCHARGES = [
   },
 ];
 
-const BOOKING_STEPS = [
-  {
-    step: "01",
-    title: "Chọn gói chụp & thời lượng",
-    detail:
-      "Lựa chọn gói chụp theo số lượng người (Cá nhân, 2 người, 3 người) và hình thức buổi chụp (Nửa ngày hoặc Cả ngày), hoặc nhấn “Đặt gói này” ngay trên bảng giá.",
-  },
-  {
-    step: "02",
-    title: "Chọn ngày, buổi chụp trống & điền thông tin",
-    detail:
-      "Chọn ngày dự kiến chụp để hệ thống tự động kiểm tra các buổi (Sáng, Chiều, Tối hoặc Cả ngày) còn trống, sau đó điền Họ tên, Số điện thoại, Địa chỉ cụ thể muốn chụp và Lưu ý với thợ.",
-  },
-  {
-    step: "03",
-    title: "Nhận mã đặt lịch & giữ chỗ tạm thời 30 phút",
-    detail:
-      "Nhấn “Đặt lịch ngay” để gửi yêu cầu. Hệ thống sẽ ghi nhận đơn ở trạng thái Chờ xử lý, cấp Mã đặt lịch và giữ chỗ tạm thời trong vòng 30 phút.",
-  },
-  {
-    step: "04",
-    title: "Gửi tin nhắn xác nhận & đặt cọc giữ lịch",
-    detail:
-      "Sao chép mẫu tin nhắn tóm tắt tự động trên màn hình và gửi cho Bấu qua Facebook, Instagram hoặc Zalo để trao đổi chi tiết và hoàn tất đặt cọc giữ lịch chính thức.",
-  },
-];
-
 /** The three customer groups — keyed by PricingPackage.groupSize. */
 const GROUPS = [
   { size: 1, title: "Cá nhân" },
@@ -349,66 +322,82 @@ export function PricingPage({
           </div>
         </div>
 
-        {/* Booking process & photo delivery turnaround */}
-        <div className="mx-auto max-w-[1400px] px-5 pb-16 md:px-10 md:pb-20">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h2 className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
-                Hướng dẫn đặt lịch
-              </h2>
-              <p className="mt-2 font-semibold text-2xl font-semibold text-absolutewhite md:text-3xl">
-                Quy trình đặt lịch
-              </p>
-            </div>
-            <Link
-              href="/booking"
-              className="inline-flex items-center gap-2 rounded-[10px] bg-brand-55 px-5 py-2.5 font-medium text-sm text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60"
-            >
-              Đi tới trang Đặt lịch ↗
-            </Link>
-          </div>
-
-          <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {BOOKING_STEPS.map((item) => (
+        {/* Booking process & 1-week delivery deadline */}
+        <div className="mx-auto max-w-[1400px] px-5 pb-16 md:px-10">
+          <h2 className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
+            Quy trình đặt lịch
+          </h2>
+          <ol className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                title: "Chọn gói & lịch",
+                detail:
+                  "Xem bảng giá theo số người, chọn gói chụp phù hợp rồi chọn ngày và ca chụp ở trang Đặt lịch.",
+              },
+              {
+                title: "Gửi thông tin",
+                detail:
+                  "Điền thông tin trên form đặt lịch, hệ thống tạo mã đặt lịch và giữ chỗ tạm thời.",
+              },
+              {
+                title: "Liên hệ xác nhận",
+                detail:
+                  "Gửi tin nhắn mẫu qua Instagram / Facebook / Zalo để trao đổi concept, địa điểm và phí di chuyển.",
+              },
+              {
+                title: "Đặt cọc giữ lịch",
+                detail: `Đặt cọc ${formatVnd(deposit)} — lịch chụp được xác nhận chính thức sau khi nhận cọc.`,
+              },
+              {
+                title: "Buổi chụp",
+                detail:
+                  "Thực hiện buổi chụp theo concept đã thống nhất và thanh toán phần còn lại sau buổi chụp.",
+              },
+              {
+                title: "Chọn ảnh",
+                detail:
+                  "Nhận full file đã căn chỉnh cơ bản để kiểm tra và chọn các bức ảnh cần hậu kỳ chi tiết.",
+              },
+              {
+                title: "Nhận ảnh hậu kỳ",
+                detail:
+                  "Nhận bộ ảnh đã hậu kỳ chi tiết qua link lưu trữ chất lượng cao (lưu file trong 3 tháng).",
+              },
+            ].map((step, idx) => (
               <li
-                key={item.step}
-                className="flex flex-col rounded-[14px] border border-dark-12 bg-dark-08 p-6"
+                key={step.title}
+                className="flex flex-col rounded-[14px] bg-dark-08 p-5"
               >
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-55/15 font-mono text-xs font-semibold tracking-[0.12em] text-brand-55">
-                  {item.step}
-                </span>
-                <h3 className="mt-4 font-semibold text-base font-semibold text-absolutewhite">
-                  {item.title}
-                </h3>
-                <p className="mt-2 flex-1 text-sm leading-6 text-grey-70">
-                  {item.detail}
+                <div className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-55/20 font-semibold text-xs font-semibold text-brand-55">
+                    {idx + 1}
+                  </span>
+                  <p className="font-semibold text-sm font-semibold text-absolutewhite">
+                    {step.title}
+                  </p>
+                </div>
+                <p className="mt-2.5 text-sm leading-6 text-grey-70">
+                  {step.detail}
                 </p>
               </li>
             ))}
           </ol>
 
-          <div
-            role="note"
-            aria-label="Thời hạn giao ảnh"
-            className="mt-6 flex flex-col items-start justify-between gap-4 rounded-[14px] border border-brand-55/35 bg-brand-55/10 px-6 py-5 sm:flex-row sm:items-center"
-          >
-            <div className="flex items-start gap-3.5 sm:items-center">
-              <span
-                aria-hidden="true"
-                className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-55 text-white sm:mt-0"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-                  <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </span>
-              <p className="font-semibold text-sm font-semibold leading-6 text-absolutewhite sm:text-base">
-                Thời gian giao ảnh: trong vòng 01 tuần kể từ khi khách hàng lựa chọn ảnh.
+          <div className="mt-6 flex flex-col items-start justify-between gap-4 rounded-[14px] border border-brand-55/40 bg-brand-55/10 p-6 sm:flex-row sm:items-center">
+            <div>
+              <p className="font-semibold text-base font-semibold text-absolutewhite">
+                Hạn giao ảnh: sau 1 tuần kể từ khi khách chọn ảnh.
+              </p>
+              <p className="mt-1 text-sm text-grey-70">
+                File gốc đã căn chỉnh cơ bản sẽ được gửi trước để bạn thoải mái chọn ảnh hậu kỳ.
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-dark-03 px-3.5 py-1 font-mono text-xs font-medium uppercase tracking-[0.12em] text-brand-55">
-              Cam kết hậu kỳ
-            </span>
+            <Link
+              href="/booking"
+              className="shrink-0 rounded-[10px] bg-brand-55 px-6 py-3 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2"
+            >
+              Đặt lịch ngay
+            </Link>
           </div>
         </div>
       </section>

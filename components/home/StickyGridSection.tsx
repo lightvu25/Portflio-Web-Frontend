@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useMemo, useRef } from "react";
 import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap";
+import type { ResolvedSiteStats } from "@/lib/site-stats";
 import type { Photo } from "@/types/photo";
 import styles from "./StickyGridSection.module.css";
 
@@ -11,26 +12,36 @@ const GRID_COUNT = 12;
 const NUM_COLUMNS = 3;
 
 /**
- * Scroll-driven sticky 3×4 photo grid showcase — adapted from Codrops
+ * Scroll-driven sticky 3×4 photo grid hero — adapted from Codrops
  * "Sticky Grid Scroll" (MIT License, Theo Plawinski & Codrops).
  *
- * Preserves the exact core animation architecture from the template:
- *  1. `initContent` — hides description & CTA button, centers title vertically via `yPercent`.
- *  2. `groupItemsByColumn` — buckets the 12 grid items into 3 columns (`index % 3`).
- *  3. `addParallaxOnScroll` — scrubs `.wrapper` from `yPercent: -100` (`top bottom` → `top top`).
- *  4. `animateTitleOnScroll` — fades in `.title` at `start: "top 57%"`.
- *  5. `animateGridOnScroll` — scrubbed timeline (`start: "top 25%"`, `end: "bottom bottom"`)
- *     combining `gridRevealTimeline`, `gridZoomTimeline` (`-=0.6`), and `toggleContent` (`-=0.32`).
+ * Mounted at the top of the homepage on an ivory (#F5F3EC) backdrop with a
+ * green gradient center panel so text never clashes with grid photos.
+ * Scrubbed scroll sequence:
+ *  1. At scrollY=0: Greeting ("Xin chào cả nhà, tui tên là") + H1 photographer name.
+ *  2. Photo columns slide in (`gridRevealTimeline`) as greeting fades out.
+ *  3. Stats appear sequentially: clientsCount+ → experienceYears → conceptsCount+.
+ *  4. Stats fade out while grid zooms & separates (`gridZoomTimeline`).
+ *  5. Final CTA block ("Khoảnh khắc đáng giữ" + booking/gallery links) fades in.
  */
-export function StickyGridSection({ photos }: { photos: Photo[] }) {
+export function StickyGridSection({
+  photos,
+  photographerName,
+  stats,
+}: {
+  photos: Photo[];
+  photographerName?: string | null;
+  stats: ResolvedSiteStats;
+}) {
   const blockRef = useRef<HTMLElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const titleRef = useRef<HTMLHeadingElement>(null);
-  const descriptionRef = useRef<HTMLParagraphElement>(null);
-  const buttonRef = useRef<HTMLAnchorElement>(null);
+  const greetingRef = useRef<HTMLDivElement>(null);
+  const statsRef = useRef<HTMLDivElement>(null);
+  const ctaRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLUListElement>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const displayName = (photographerName?.trim() || "Bấu Chụp Choẹt").toUpperCase();
 
   // Ensure exactly 12 items for the 3×4 grid, cycling through published photos if < 12 exist.
   const gridPhotos = useMemo(() => {
@@ -53,64 +64,41 @@ export function StickyGridSection({ photos }: { photos: Photo[] }) {
     () => {
       const block = blockRef.current;
       const wrapper = wrapperRef.current;
-      const content = contentRef.current;
-      const title = titleRef.current;
-      const description = descriptionRef.current;
-      const button = buttonRef.current;
+      const greeting = greetingRef.current;
+      const statsContainer = statsRef.current;
+      const ctaContainer = ctaRef.current;
       const grid = gridRef.current;
 
-      if (!block || !wrapper || !content || !title || !description || !button || !grid) {
+      if (!block || !wrapper || !greeting || !statsContainer || !ctaContainer || !grid) {
         return;
       }
 
       const items = Array.from(grid.querySelectorAll<HTMLElement>("[data-grid-item]"));
+      const statEls = Array.from(statsContainer.querySelectorAll<HTMLElement>("[data-stat-item]"));
+      const ctaEls = Array.from(ctaContainer.querySelectorAll<HTMLElement>("[data-cta-item]"));
       if (items.length === 0) return;
 
       const mm = gsap.matchMedia();
 
       mm.add("(prefers-reduced-motion: no-preference)", () => {
-        // 1. initContent() — compute dynamic vertical center offset for title
-        const getTitleOffsetY = () => {
-          const contentH = content.offsetHeight || 1;
-          const dy = (contentH - title.offsetHeight) / 2;
-          return (dy / contentH) * 100;
+        let headerH = 0;
+        const measureHeader = () => {
+          const headerEl = document.querySelector("header");
+          headerH = headerEl ? Math.round(headerEl.getBoundingClientRect().height) : 0;
+          block.style.setProperty("--sg-offset", `${headerH}px`);
         };
 
-        gsap.set(title, {
-          autoAlpha: 0,
-          yPercent: getTitleOffsetY(),
-        });
-        gsap.set([description, button], {
-          autoAlpha: 0,
-          y: 16,
-          pointerEvents: "none",
-        });
+        measureHeader();
+        gsap.set(greeting, { autoAlpha: 1, yPercent: 0 });
+        gsap.set(statEls, { autoAlpha: 0, y: 24 });
+        gsap.set(ctaEls, { autoAlpha: 0, y: 24 });
 
-        // 2. groupItemsByColumn()
+        // Bucket the 12 grid items into 3 columns (index % 3)
         const columns: HTMLElement[][] = Array.from({ length: NUM_COLUMNS }, () => []);
         items.forEach((item, index) => {
           columns[index % NUM_COLUMNS].push(item);
         });
 
-        // 3. Scrubbed title entry before sticky lock so scrolling up/down is 100% reversible
-        gsap.fromTo(
-          title,
-          { autoAlpha: 0 },
-          {
-            autoAlpha: 1,
-            ease: "power1.out",
-            overwrite: "auto",
-            scrollTrigger: {
-              trigger: block,
-              start: "top 75%",
-              end: "top 15%",
-              scrub: 0.35,
-              invalidateOnRefresh: true,
-            },
-          },
-        );
-
-        // 4. gridRevealTimeline(columns)
         const gridRevealTimeline = (cols = columns) => {
           const tl = gsap.timeline();
           cols.forEach((column, colIndex) => {
@@ -135,79 +123,88 @@ export function StickyGridSection({ photos }: { photos: Photo[] }) {
           return tl;
         };
 
-        // 5. gridZoomTimeline(columns) — zooms grid, parts columns, and scrubs title/CTA reveal
         const gridZoomTimeline = (cols = columns) => {
           const tl = gsap.timeline({ defaults: { duration: 1, ease: "power3.inOut" } });
-          tl.to(grid, { scale: 2.05 }, 0);
-          tl.to(cols[0], { xPercent: -40 }, 0);
-          tl.to(cols[2], { xPercent: 40 }, 0);
+          tl.to(grid, { scale: 2.05 });
+          tl.to(cols[0], { xPercent: -40 }, "<");
+          tl.to(cols[2], { xPercent: 40 }, "<");
           tl.to(
             cols[1],
             {
               yPercent: (index) => (index < Math.floor(cols[1].length / 2) ? -1 : 1) * 40,
-              duration: 0.55,
-              ease: "power2.inOut",
-            },
-            0.35,
-          );
-          tl.fromTo(
-            title,
-            { yPercent: () => getTitleOffsetY() },
-            {
-              yPercent: 0,
               duration: 0.5,
-              ease: "power2.inOut",
-              immediateRender: false,
+              ease: "power1.inOut",
             },
-            0.42,
-          );
-          tl.fromTo(
-            [description, button],
-            { autoAlpha: 0, y: 16 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 0.38,
-              stagger: 0.05,
-              ease: "power2.out",
-              immediateRender: false,
-            },
-            0.56,
+            "-=0.5",
           );
           return tl;
         };
 
-        // 6. Unified scrubbed mainTimeline — deterministic in both scroll directions
         const mainTimeline = gsap.timeline({
           scrollTrigger: {
             trigger: block,
-            start: "top top",
+            start: () => `top top+=${headerH}`,
             end: "bottom bottom",
-            scrub: 0.5,
+            scrub: true,
             invalidateOnRefresh: true,
-            onUpdate: (self) => {
-              const interactive = self.progress >= 0.72;
-              button.style.pointerEvents = interactive ? "auto" : "none";
-            },
           },
         });
 
         mainTimeline
-          .set(title, { yPercent: () => getTitleOffsetY() }, 0)
-          .set([description, button], { autoAlpha: 0, y: 16 }, 0)
-          .add(gridRevealTimeline(), 0)
-          .add(gridZoomTimeline(), "-=0.55");
+          .add(gridRevealTimeline(), "reveal")
+          .to(
+            greeting,
+            { autoAlpha: 0, yPercent: -30, duration: 0.35, ease: "power2.inOut" },
+            "reveal+=0.38",
+          )
+          .fromTo(
+            statEls,
+            { autoAlpha: 0, y: 24 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              stagger: 0.28,
+              duration: 0.32,
+              ease: "power2.out",
+            },
+            ">-0.05",
+          )
+          .to(
+            statEls,
+            {
+              autoAlpha: 0,
+              y: -24,
+              stagger: 0.06,
+              duration: 0.28,
+              ease: "power2.in",
+            },
+            "+=0.42",
+          )
+          .add(gridZoomTimeline(), "<")
+          .fromTo(
+            ctaEls,
+            { autoAlpha: 0, y: 24 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              stagger: 0.1,
+              duration: 0.38,
+              ease: "power2.out",
+            },
+            "-=0.4",
+          )
+          .to({}, { duration: 0.2 });
+
+        ScrollTrigger.addEventListener("refreshInit", measureHeader);
+
+        return () => {
+          ScrollTrigger.removeEventListener("refreshInit", measureHeader);
+        };
       });
 
       mm.add("(prefers-reduced-motion: reduce)", () => {
-        gsap.set([wrapper, title, description, button, grid, ...items], {
+        gsap.set([wrapper, greeting, ...statEls, ...ctaEls, grid, ...items], {
           clearProps: "all",
-        });
-        gsap.set([title, description, button], {
-          autoAlpha: 1,
-          y: 0,
-          yPercent: 0,
-          pointerEvents: "auto",
         });
       });
 
@@ -224,22 +221,56 @@ export function StickyGridSection({ photos }: { photos: Photo[] }) {
   return (
     <section
       ref={blockRef}
-      aria-label="Trải nghiệm bộ sưu tập"
+      aria-label="Giới thiệu và trải nghiệm bộ sưu tập"
       className={styles.block}
     >
       <div ref={wrapperRef} className={styles.wrapper}>
-        <div ref={contentRef} className={styles.content}>
-          <h2 ref={titleRef} className={styles.title}>
-            <span className={styles.eyebrow}>Bấu Chụp Choẹt</span>
-            Khoảnh khắc đáng giữ
-          </h2>
-          <p ref={descriptionRef} className={styles.description}>
-            Mỗi khung hình là một câu chuyện tuổi trẻ tự nhiên, trong trẻo và
-            tràn đầy cảm xúc qua ống kính của Bấu.
-          </p>
-          <Link ref={buttonRef} href="/gallery" className={styles.button}>
-            Khám phá bộ sưu tập ↗
-          </Link>
+        <div className={styles.content}>
+          <div className={styles.panel}>
+            {/* Stage 1: Greeting + H1 (visible immediately at scrollY=0) */}
+            <div ref={greetingRef} data-stage="greeting" className={styles.greeting}>
+              <span className={styles.eyebrow}>Xin chào cả nhà, tui tên là</span>
+              <h1 className={styles.heroTitle}>{displayName}</h1>
+            </div>
+
+            {/* Stage 2: Sequential stats */}
+            <div ref={statsRef} data-stage="stats" className={styles.stats}>
+              <div data-stat-item className={styles.statItem}>
+                <span className={styles.statValue}>{stats.clientsCount}+</span>
+                <span className={styles.statLabel}>khách đã chụp</span>
+              </div>
+              <div data-stat-item className={styles.statItem}>
+                <span className={styles.statValue}>{stats.experienceYears}</span>
+                <span className={styles.statLabel}>năm kinh nghiệm</span>
+              </div>
+              <div data-stat-item className={styles.statItem}>
+                <span className={styles.statValue}>{stats.conceptsCount}+</span>
+                <span className={styles.statLabel}>concept đã chụp</span>
+              </div>
+            </div>
+
+            {/* Stage 3: Final CTA */}
+            <div ref={ctaRef} data-stage="cta" className={styles.cta}>
+              <span data-cta-item className={`${styles.eyebrow} ${styles.ctaItem}`}>
+                {displayName}
+              </span>
+              <h2 data-cta-item className={`${styles.ctaTitle} ${styles.ctaItem}`}>
+                Khoảnh khắc đáng giữ
+              </h2>
+              <p data-cta-item className={`${styles.description} ${styles.ctaItem}`}>
+                Mỗi khung hình là một câu chuyện tuổi trẻ tự nhiên, trong trẻo và
+                tràn đầy cảm xúc qua ống kính của Bấu.
+              </p>
+              <div data-cta-item className={`${styles.actions} ${styles.ctaItem}`}>
+                <Link href="/booking" className={styles.primaryButton}>
+                  Đặt lịch ngay
+                </Link>
+                <Link href="/gallery" className={styles.secondaryButton}>
+                  Khám phá bộ sưu tập ↗
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className={styles.gallery}>
@@ -251,7 +282,7 @@ export function StickyGridSection({ photos }: { photos: Photo[] }) {
                   alt={photo.altText ?? photo.title ?? `Ảnh bộ sưu tập ${idx + 1}`}
                   fill
                   quality={100}
-                  sizes="(min-width: 1024px) 260px, 30vw"
+                  sizes="(min-width: 1280px) 1000px, (min-width: 768px) 70vw, 100vw"
                   onLoad={handleImageLoad}
                   className={styles.image}
                 />

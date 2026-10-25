@@ -401,23 +401,59 @@ export function AdminPhotosPage() {
   }, [categoryFilteredPhotos, statusFilter, searchQuery]);
 
   // ---------- Bulk selection ----------
-  const toggleSelect = (id: number) =>
+  const lastClickedIdRef = useRef<number | null>(null);
+  const [bulkStatusText, setBulkStatusText] = useState<string | null>(null);
+
+  const toggleSelect = (id: number, shiftKey = false) => {
+    setSelectMode(true);
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const shouldSelect = !next.has(id);
+      if (shiftKey && lastClickedIdRef.current != null) {
+        const ids = visiblePhotos.map((p) => p.id);
+        const a = ids.indexOf(lastClickedIdRef.current);
+        const b = ids.indexOf(id);
+        if (a !== -1 && b !== -1) {
+          const [start, end] = a < b ? [a, b] : [b, a];
+          for (let i = start; i <= end; i++) {
+            if (shouldSelect) next.add(ids[i]);
+            else next.delete(ids[i]);
+          }
+          lastClickedIdRef.current = id;
+          return next;
+        }
+      }
+      if (shouldSelect) next.add(id);
+      else next.delete(id);
+      lastClickedIdRef.current = id;
       return next;
     });
+  };
   const selectAllVisible = () => {
     setSelectMode(true);
     setSelected(new Set(visiblePhotos.map((p) => p.id)));
   };
-  const clearSelection = () => setSelected(new Set());
+  const clearSelection = () => {
+    setSelected(new Set());
+    lastClickedIdRef.current = null;
+  };
   const selectedCount = selected.size;
+  const selectedPhotosList = useMemo(
+    () => photos.filter((p) => selected.has(p.id)),
+    [photos, selected],
+  );
+  const selectedDraftIds = useMemo(
+    () => selectedPhotosList.filter((p) => p.status === "DRAFT").map((p) => p.id),
+    [selectedPhotosList],
+  );
+  const selectedPublishedIds = useMemo(
+    () => selectedPhotosList.filter((p) => p.status === "PUBLISHED").map((p) => p.id),
+    [selectedPhotosList],
+  );
   const adminCat = categories.find(isAdminCategory);
   /** Selected photos that currently sit in the reserved Admin category. */
-  const selectedAdminPhotos = photos.filter(
-    (p) => selected.has(p.id) && p.categories.some(isAdminCategory),
+  const selectedAdminPhotos = selectedPhotosList.filter((p) =>
+    p.categories.some(isAdminCategory),
   );
   const zoomedIndex = zoomedPhoto ? visiblePhotos.findIndex((p) => p.id === zoomedPhoto.id) : -1;
   const prevZoomedPhoto = zoomedIndex > 0 ? visiblePhotos[zoomedIndex - 1] : undefined;
@@ -425,6 +461,105 @@ export function AdminPhotosPage() {
     zoomedIndex >= 0 && zoomedIndex < visiblePhotos.length - 1
       ? visiblePhotos[zoomedIndex + 1]
       : undefined;
+
+  const bulkPublishSelected = async () => {
+    if (!token || bulkBusy) return;
+    const ids = selectedDraftIds.length > 0 ? selectedDraftIds : [...selected];
+    if (ids.length === 0) return;
+    if (!window.confirm(`Xuất bản ${ids.length} bức ảnh đã chọn?`)) return;
+    setBulkBusy(true);
+    setNotice(null);
+    let ok = 0;
+    let fail = 0;
+    for (let i = 0; i < ids.length; i++) {
+      setBulkStatusText(`Đang xuất bản ${i + 1}/${ids.length}…`);
+      try {
+        await publishPhoto(token, ids[i]);
+        ok++;
+      } catch (err) {
+        fail++;
+        onApiError(err);
+      }
+    }
+    setBulkStatusText(null);
+    setBulkBusy(false);
+    clearSelection();
+    setNotice({
+      ok: fail === 0,
+      text:
+        fail === 0
+          ? `Đã xuất bản thành công ${ok} bức ảnh.`
+          : `Đã xuất bản ${ok} bức ảnh, ${fail} ảnh lỗi.`,
+    });
+    await load(token);
+  };
+
+  const bulkUnpublishSelected = async () => {
+    if (!token || bulkBusy || selectedPublishedIds.length === 0) return;
+    const ids = selectedPublishedIds;
+    if (!window.confirm(`Chuyển ${ids.length} bức ảnh đã chọn về Bản nháp?`)) return;
+    setBulkBusy(true);
+    setNotice(null);
+    let ok = 0;
+    let fail = 0;
+    for (let i = 0; i < ids.length; i++) {
+      setBulkStatusText(`Đang ẩn ${i + 1}/${ids.length}…`);
+      try {
+        await unpublishPhoto(token, ids[i]);
+        ok++;
+      } catch (err) {
+        fail++;
+        onApiError(err);
+      }
+    }
+    setBulkStatusText(null);
+    setBulkBusy(false);
+    clearSelection();
+    setNotice({
+      ok: fail === 0,
+      text:
+        fail === 0
+          ? `Đã chuyển ${ok} bức ảnh về Bản nháp.`
+          : `Đã ẩn ${ok} bức ảnh, ${fail} ảnh lỗi.`,
+    });
+    await load(token);
+  };
+
+  const bulkDeleteSelected = async () => {
+    if (!token || selectedCount === 0 || bulkBusy) return;
+    const ids = [...selected];
+    if (
+      !window.confirm(
+        `Xóa vĩnh viễn toàn bộ (${ids.length} bức) ảnh đã chọn? Hành động này không thể hoàn tác.`,
+      )
+    )
+      return;
+    setBulkBusy(true);
+    setNotice(null);
+    let ok = 0;
+    let fail = 0;
+    for (let i = 0; i < ids.length; i++) {
+      setBulkStatusText(`Đang xóa ${i + 1}/${ids.length}…`);
+      try {
+        await deletePhoto(token, ids[i]);
+        ok++;
+      } catch (err) {
+        fail++;
+        onApiError(err);
+      }
+    }
+    setBulkStatusText(null);
+    setBulkBusy(false);
+    clearSelection();
+    setNotice({
+      ok: fail === 0,
+      text:
+        fail === 0
+          ? `Đã xóa thành công ${ok} bức ảnh.`
+          : `Đã xóa ${ok} bức ảnh, ${fail} ảnh lỗi.`,
+    });
+    await load(token);
+  };
 
   const applyBulk = async (add: number[], remove: number[]) => {
     if (!token || selectedCount === 0 || bulkBusy) return;
@@ -460,18 +595,24 @@ export function AdminPhotosPage() {
   /** Cards without the dragged one — the insertion index addresses this list. */
   const canReorder =
     !savingOrder &&
-    activeCategory === "ALL" &&
+    !selectMode &&
     statusFilter === "ALL" &&
-    searchQuery.trim() === "";
-  const others = dragId == null ? sorted : sorted.filter((p) => p.id !== dragId);
-  const othersIndex = new Map(others.map((p, i) => [p.id, i]));
+    searchQuery.trim() === "" &&
+    visiblePhotos.length > 1;
+  const others = useMemo(
+    () => (dragId == null ? visiblePhotos : visiblePhotos.filter((p) => p.id !== dragId)),
+    [visiblePhotos, dragId],
+  );
+  const othersIndex = useMemo(() => new Map(others.map((p, i) => [p.id, i])), [others]);
+  const justDraggedRef = useRef(false);
 
   // ---------- Insertion-based drag-to-reorder ----------
   const startDrag = (e: React.DragEvent, photo: Photo) => {
-    if (!canReorder) {
+    if (!canReorder || (e.target as HTMLElement).closest("button")) {
       e.preventDefault();
       return;
     }
+    justDraggedRef.current = true;
     setDragId(photo.id);
     const card = (e.currentTarget as HTMLElement).closest("article");
     const cardRect = card?.getBoundingClientRect();
@@ -484,7 +625,7 @@ export function AdminPhotosPage() {
     if (cardRect && gridRef.current) {
       const cr = gridRef.current.getBoundingClientRect();
       setIndicator({
-        left: cardRect.left - cr.left - 10,
+        left: Math.max(2, cardRect.left - cr.left - 8),
         top: cardRect.top - cr.top,
         height: cardRect.height,
       });
@@ -495,22 +636,93 @@ export function AdminPhotosPage() {
     setDragId(null);
     setInsertIndex(null);
     setIndicator(null);
+    window.setTimeout(() => {
+      justDraggedRef.current = false;
+    }, 0);
   };
 
-  const overCard = (e: React.DragEvent, photo: Photo) => {
-    if (dragId == null) return;
+  const onGridDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (dragId == null || !gridRef.current) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    const j = othersIndex.get(photo.id);
-    if (j == null) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const before = e.clientX < rect.left + rect.width / 2;
-    setInsertIndex(before ? j : j + 1);
-    if (gridRef.current) {
-      const cr = gridRef.current.getBoundingClientRect();
-      const x = before ? rect.left - cr.left - 10 : rect.right - cr.left + 6;
-      setIndicator({ left: x, top: rect.top - cr.top, height: rect.height });
+
+    const gridEl = gridRef.current;
+    const cr = gridEl.getBoundingClientRect();
+    const cardEls = Array.from(gridEl.querySelectorAll<HTMLElement>("article[data-photo-id]"));
+    const rects = cardEls.map((el, index) => ({
+      index,
+      id: Number(el.dataset.photoId),
+      rect: el.getBoundingClientRect(),
+    }));
+    if (rects.length === 0) return;
+
+    // Group cards into visual rows by vertical position
+    const rows: (typeof rects)[] = [];
+    for (const item of rects) {
+      const lastRow = rows[rows.length - 1];
+      if (!lastRow || Math.abs(item.rect.top - lastRow[0].rect.top) > item.rect.height / 2) {
+        rows.push([item]);
+      } else {
+        lastRow.push(item);
+      }
     }
+
+    // Pick the row closest vertically to the pointer
+    let targetRow = rows[0];
+    let bestRowDist = Infinity;
+    for (const row of rows) {
+      const top = row[0].rect.top;
+      const bottom = row[0].rect.bottom;
+      const dist =
+        e.clientY >= top && e.clientY <= bottom
+          ? 0
+          : Math.min(Math.abs(e.clientY - top), Math.abs(e.clientY - bottom));
+      if (dist < bestRowDist) {
+        bestRowDist = dist;
+        targetRow = row;
+      }
+    }
+
+    // Find whether the pointer is before the first card (head) or between two cards in the row
+    const firstBeforeIdx = targetRow.findIndex(
+      (item) => e.clientX < item.rect.left + item.rect.width / 2,
+    );
+
+    let slotIndex: number;
+    let indicatorLeft: number;
+    let indicatorTop: number;
+    let indicatorHeight: number;
+
+    if (firstBeforeIdx === 0) {
+      // At the head of the row (before the first card in this row)
+      const first = targetRow[0];
+      slotIndex = first.index;
+      indicatorLeft = Math.max(2, first.rect.left - cr.left - 8);
+      indicatorTop = first.rect.top - cr.top;
+      indicatorHeight = first.rect.height;
+    } else if (firstBeforeIdx > 0) {
+      // In the middle gap between targetRow[firstBeforeIdx - 1] and targetRow[firstBeforeIdx]
+      const prevCard = targetRow[firstBeforeIdx - 1];
+      const nextCard = targetRow[firstBeforeIdx];
+      slotIndex = nextCard.index;
+      indicatorLeft = (prevCard.rect.right - cr.left + (nextCard.rect.left - cr.left)) / 2;
+      indicatorTop = nextCard.rect.top - cr.top;
+      indicatorHeight = nextCard.rect.height;
+    } else {
+      // After the last card in this row
+      const last = targetRow[targetRow.length - 1];
+      slotIndex = last.index + 1;
+      indicatorLeft = Math.min(cr.width - 2, last.rect.right - cr.left + 8);
+      indicatorTop = last.rect.top - cr.top;
+      indicatorHeight = last.rect.height;
+    }
+
+    const draggedVisualIdx = visiblePhotos.findIndex((p) => p.id === dragId);
+    const nextInsertIdx =
+      draggedVisualIdx !== -1 && slotIndex > draggedVisualIdx ? slotIndex - 1 : slotIndex;
+
+    setInsertIndex(nextInsertIdx);
+    setIndicator({ left: indicatorLeft, top: indicatorTop, height: indicatorHeight });
   };
 
   const commitReorder = async () => {
@@ -521,10 +733,13 @@ export function AdminPhotosPage() {
 
     const ids = others.map((p) => p.id);
     ids.splice(Math.min(idx, ids.length), 0, id);
-    if (ids.join() === sorted.map((p) => p.id).join()) return;
+    if (ids.join() === visiblePhotos.map((p) => p.id).join()) return;
 
     const prev = photos;
-    setPhotos(ids.map((pid, i) => ({ ...prev.find((x) => x.id === pid)!, sortOrder: i + 1 })));
+    const newOrderMap = new Map(ids.map((pid, i) => [pid, i + 1]));
+    setPhotos(
+      prev.map((p) => (newOrderMap.has(p.id) ? { ...p, sortOrder: newOrderMap.get(p.id)! } : p)),
+    );
     setSavingOrder(true);
     setOrderError(null);
     try {
@@ -932,9 +1147,9 @@ export function AdminPhotosPage() {
             </div>
             <p className="mt-1 text-xs text-gray-500">
               {publishedInCategory} đã đăng · {draftInCategory} bản nháp
-              {activeCategory === "ALL" && (
+              {(canReorder || savingOrder) && (
                 <span className="ml-2 text-gray-400">
-                  · {savingOrder ? "Đang lưu thứ tự…" : "Kéo biểu tượng ⋮⋮ trên thẻ ảnh để sắp xếp"}
+                  · {savingOrder ? "Đang lưu thứ tự…" : "Giữ và kéo thẻ ảnh để sắp xếp vị trí"}
                 </span>
               )}
             </p>
@@ -995,6 +1210,7 @@ export function AdminPhotosPage() {
             <Btn
               variant={selectMode ? "primary" : "ghost"}
               className="px-3 py-1.5 text-xs"
+              disabled={bulkBusy}
               onClick={() => {
                 if (selectMode) {
                   setSelectMode(false);
@@ -1004,27 +1220,66 @@ export function AdminPhotosPage() {
                 }
               }}
             >
-              {selectMode ? "✓ Chế độ chọn (Đang bật)" : "Bật chọn nhiều ảnh"}
+              {selectMode
+                ? `✓ Chế độ chọn (${selectedCount} đã chọn)`
+                : "Chọn nhanh / Chọn nhiều"}
             </Btn>
-            {selectMode && (
+            {(selectMode || selectedCount > 0) && (
               <>
-                <Btn variant="ghost" className="px-2.5 py-1.5 text-xs" onClick={selectAllVisible}>
+                <Btn
+                  variant="ghost"
+                  className="px-2.5 py-1.5 text-xs"
+                  disabled={bulkBusy || visiblePhotos.length === 0}
+                  onClick={selectAllVisible}
+                >
                   Chọn tất cả ({visiblePhotos.length})
                 </Btn>
                 <Btn
                   variant="ghost"
                   className="px-2.5 py-1.5 text-xs"
                   onClick={clearSelection}
-                  disabled={selectedCount === 0}
+                  disabled={bulkBusy || selectedCount === 0}
                 >
                   Bỏ chọn
                 </Btn>
                 <Btn
+                  variant="success"
                   className="px-3 py-1.5 text-xs"
-                  disabled={selectedCount === 0}
+                  disabled={bulkBusy || selectedCount === 0}
+                  onClick={bulkPublishSelected}
+                >
+                  {bulkStatusText && bulkStatusText.startsWith("Đang xuất bản")
+                    ? bulkStatusText
+                    : `Xuất bản (${selectedDraftIds.length > 0 ? selectedDraftIds.length : selectedCount} bức)`}
+                </Btn>
+                {selectedPublishedIds.length > 0 && (
+                  <Btn
+                    variant="ghost"
+                    className="px-3 py-1.5 text-xs"
+                    disabled={bulkBusy}
+                    onClick={bulkUnpublishSelected}
+                  >
+                    {bulkStatusText && bulkStatusText.startsWith("Đang ẩn")
+                      ? bulkStatusText
+                      : `Ẩn (${selectedPublishedIds.length} bức)`}
+                  </Btn>
+                )}
+                <Btn
+                  className="px-3 py-1.5 text-xs"
+                  disabled={bulkBusy || selectedCount === 0}
                   onClick={() => setBulkOpen(true)}
                 >
                   Đổi danh mục ({selectedCount})
+                </Btn>
+                <Btn
+                  variant="danger"
+                  className="px-3 py-1.5 text-xs"
+                  disabled={bulkBusy || selectedCount === 0}
+                  onClick={bulkDeleteSelected}
+                >
+                  {bulkStatusText && bulkStatusText.startsWith("Đang xóa")
+                    ? bulkStatusText
+                    : `Xóa toàn bộ (${selectedCount} bức)`}
                 </Btn>
               </>
             )}
@@ -1105,7 +1360,7 @@ export function AdminPhotosPage() {
           <div
             ref={gridRef}
             className="relative grid grid-cols-2 items-stretch gap-4 md:grid-cols-3 xl:grid-cols-4"
-            onDragOver={(e) => dragId != null && e.preventDefault()}
+            onDragOver={onGridDragOver}
             onDrop={(e) => {
               e.preventDefault();
               commitReorder();
@@ -1114,42 +1369,60 @@ export function AdminPhotosPage() {
             {dragId != null && indicator && (
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute z-10 w-1 rounded-full bg-[#6B8E5A]"
+                className="pointer-events-none absolute z-20 w-1 -translate-x-1/2 rounded-full bg-[#6B8E5A] shadow-[0_0_8px_rgba(107,142,90,0.65)]"
                 style={{ left: indicator.left, top: indicator.top, height: indicator.height }}
-              />
+              >
+                <span className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full border-2 border-white bg-[#6B8E5A] shadow-sm" />
+                <span className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full border-2 border-white bg-[#6B8E5A] shadow-sm" />
+              </div>
             )}
             {visiblePhotos.map((p) => {
               const isSelected = selected.has(p.id);
               return (
                 <article
                   key={p.id}
-                  onDragOver={(e) => overCard(e, p)}
-                  onClick={() => {
+                  data-photo-id={p.id}
+                  draggable={canReorder}
+                  onDragStart={(e) => startDrag(e, p)}
+                  onDragEnd={endDrag}
+                  onClick={(e) => {
+                    if (justDraggedRef.current) return;
                     if (selectMode) {
-                      toggleSelect(p.id);
+                      toggleSelect(p.id, e.shiftKey);
                     }
                   }}
-                  className={`flex flex-col overflow-hidden rounded-xl border bg-white transition ${
-                    selectMode ? "cursor-pointer" : ""
+                  className={`group/card flex flex-col overflow-hidden rounded-xl border bg-white transition ${
+                    selectMode
+                      ? "cursor-pointer"
+                      : canReorder
+                        ? "cursor-grab active:cursor-grabbing"
+                        : ""
                   } ${
                     dragId === p.id
                       ? "border-dashed border-[#6B8E5A] opacity-40"
-                      : isSelected && selectMode
+                      : isSelected
                         ? "border-[#6B8E5A] ring-2 ring-[#6B8E5A] shadow-md"
                         : "border-gray-200 hover:shadow-md"
                   }`}
                 >
                   <div
                     className={`relative aspect-square overflow-hidden bg-gray-100 ${
-                      !selectMode ? "cursor-zoom-in group" : ""
+                      !selectMode ? "group" : ""
                     }`}
                     onClick={(e) => {
+                      if (justDraggedRef.current) return;
                       if (!selectMode) {
                         e.stopPropagation();
                         setZoomedPhoto(p);
                       }
                     }}
-                    title={!selectMode ? "Nhấp để xem ảnh phóng to" : undefined}
+                    title={
+                      !selectMode
+                        ? canReorder
+                          ? "Giữ và kéo để đổi vị trí · Nhấp để xem ảnh phóng to"
+                          : "Nhấp để xem ảnh phóng to"
+                        : undefined
+                    }
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary thumbnail URL */}
                     <img
@@ -1159,7 +1432,6 @@ export function AdminPhotosPage() {
                       className={`h-full w-full object-cover transition-transform duration-200 ${
                         !selectMode ? "group-hover:scale-[1.03]" : ""
                       }`}
-                      draggable={false}
                     />
                     <div className="pointer-events-none absolute left-2 top-2">
                       <Badge
@@ -1172,35 +1444,31 @@ export function AdminPhotosPage() {
                         {p.status === "PUBLISHED" ? "Đã đăng" : "Bản nháp"}
                       </Badge>
                     </div>
-                    {selectMode && (
-                      <button
-                        type="button"
-                        role="checkbox"
-                        aria-checked={isSelected}
-                        aria-label={isSelected ? "Bỏ chọn ảnh" : "Chọn ảnh"}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSelect(p.id);
-                        }}
-                        className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md border text-xs font-bold transition-colors ${
-                          isSelected
-                            ? "border-[#6B8E5A] bg-[#6B8E5A] text-white"
-                            : "border-gray-300 bg-white/80 text-transparent hover:border-[#6B8E5A]"
-                        }`}
-                      >
-                        ✓
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={isSelected}
+                      aria-label={isSelected ? "Bỏ chọn ảnh" : "Chọn ảnh"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelect(p.id, e.shiftKey);
+                      }}
+                      className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md border text-xs font-bold transition-all ${
+                        isSelected
+                          ? "border-[#6B8E5A] bg-[#6B8E5A] text-white opacity-100"
+                          : selectMode
+                            ? "border-gray-300 bg-white/90 text-transparent opacity-100 hover:border-[#6B8E5A]"
+                            : "border-gray-300 bg-white/90 text-transparent opacity-80 group-hover/card:opacity-100 hover:border-[#6B8E5A]"
+                      }`}
+                    >
+                      ✓
+                    </button>
                     {p.isFeatured && (
-                      <div
-                        className={`pointer-events-none absolute right-2 ${
-                          selectMode ? "top-9" : "top-2"
-                        }`}
-                      >
+                      <div className="pointer-events-none absolute right-2 top-9">
                         <Badge color="bg-green-100 text-green-700">Nổi bật</Badge>
                       </div>
                     )}
-                    {selectMode && isSelected && (
+                    {isSelected && (
                       <div
                         aria-hidden="true"
                         className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-[#6B8E5A]"
@@ -1233,31 +1501,6 @@ export function AdminPhotosPage() {
                     </div>
                     <p className="mt-1.5 flex items-center text-[11px] text-gray-400">
                       Thứ tự: {p.sortOrder} · {formatDate(p.createdAt)}
-                      {canReorder && (
-                        <span
-                          draggable
-                          onDragStart={(e) => startDrag(e, p)}
-                          onDragEnd={endDrag}
-                          onClick={(e) => e.stopPropagation()}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          title="Kéo để sắp xếp"
-                          className="ml-auto inline-flex cursor-grab items-center justify-center rounded-md px-1.5 py-1 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-500 active:cursor-grabbing"
-                        >
-                          <svg
-                            width="10"
-                            height="14"
-                            viewBox="0 0 10 14"
-                            fill="currentColor"
-                            aria-hidden="true"
-                          >
-                            {[0, 5, 10].map((y) =>
-                              [3, 7].map((x) => (
-                                <circle key={`${x}-${y}`} cx={x} cy={y + 2} r="1.4" />
-                              )),
-                            )}
-                          </svg>
-                        </span>
-                      )}
                     </p>
                     <div
                       className="mt-3 flex flex-wrap gap-1.5"

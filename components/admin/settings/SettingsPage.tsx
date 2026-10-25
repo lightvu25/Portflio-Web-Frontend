@@ -7,6 +7,7 @@ import { describeApiError } from "@/lib/api/client";
 import { getAdminPhotos } from "@/lib/api/photos";
 import { useAdmin } from "@/lib/auth/useAdmin";
 import { isAdminCategory } from "@/lib/labels";
+import { DEFAULT_SITE_STATS, resolveSiteStats } from "@/lib/site-stats";
 import type { Photo } from "@/types/photo";
 import type { SiteSettings, SiteSettingsRequest } from "@/types/site";
 import { Btn, Card, inputCls, labelCls, Spinner } from "@/components/admin/ui";
@@ -24,10 +25,14 @@ export function AdminSettingsPage() {
     if (!ready || !token) return;
     getAdminPhotos(token).then(setAdminPhotos).catch(() => {});
     getAdminSiteSettings(token)
-      .then((s: SiteSettings) =>
+      .then((s: SiteSettings) => {
+        const stats = resolveSiteStats(s);
         setForm({
           photographerName: s.photographerName,
           experience: s.experience ?? "",
+          experienceYears: stats.experienceYears,
+          clientsCount: stats.clientsCount,
+          conceptsCount: stats.conceptsCount,
           bio: s.bio ?? "",
           facebookUrl: s.facebookUrl ?? "",
           instagramUrl: s.instagramUrl ?? "",
@@ -36,8 +41,8 @@ export function AdminSettingsPage() {
           profilePhotoId: s.profilePhoto?.id ?? null,
           depositAmount: s.depositAmount,
           equipment: s.equipment && s.equipment.trim() ? s.equipment : undefined,
-        }),
-      )
+        });
+      })
       .catch((err) => {
         if (!onApiError(err)) {
           // 404 = no settings row yet — start with defaults.
@@ -45,6 +50,9 @@ export function AdminSettingsPage() {
             photographerName: "Bấu Chụp Choẹt",
             messengerUrl: CONTACT.zalo,
             depositAmount: 500000,
+            experienceYears: DEFAULT_SITE_STATS.experienceYears,
+            clientsCount: DEFAULT_SITE_STATS.clientsCount,
+            conceptsCount: DEFAULT_SITE_STATS.conceptsCount,
           });
         }
       });
@@ -59,6 +67,17 @@ export function AdminSettingsPage() {
     if (!/^\d{10}$/.test(zaloPhone)) {
       setError("Số điện thoại Zalo không hợp lệ — vui lòng nhập đúng 10 chữ số.");
       return;
+    }
+    const statChecks: Array<[string, number | undefined]> = [
+      ["Số khách đã chụp", form.clientsCount],
+      ["Số năm kinh nghiệm", form.experienceYears],
+      ["Số concept đã chụp", form.conceptsCount],
+    ];
+    for (const [label, val] of statChecks) {
+      if (val === undefined || !Number.isInteger(val) || val < 0) {
+        setError(`${label} không hợp lệ — vui lòng nhập số nguyên không âm.`);
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -97,8 +116,41 @@ export function AdminSettingsPage() {
           <input className={inputCls} value={form.photographerName} onChange={(e) => set("photographerName", e.target.value)} />
         </div>
         <div>
-          <label className={labelCls}>Kinh nghiệm</label>
+          <label className={labelCls}>Kinh nghiệm (hiển thị ở mục Tôi là)</label>
           <input className={inputCls} value={form.experience ?? ""} onChange={(e) => set("experience", e.target.value)} placeholder="5+ năm chụp ảnh" />
+        </div>
+        <div>
+          <label className={labelCls}>Số khách đã chụp (đầu trang chủ)</label>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            className={inputCls}
+            value={form.clientsCount ?? DEFAULT_SITE_STATS.clientsCount}
+            onChange={(e) => set("clientsCount", e.target.value === "" ? 0 : Math.floor(Number(e.target.value)))}
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Số năm kinh nghiệm (đầu trang chủ)</label>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            className={inputCls}
+            value={form.experienceYears ?? DEFAULT_SITE_STATS.experienceYears}
+            onChange={(e) => set("experienceYears", e.target.value === "" ? 0 : Math.floor(Number(e.target.value)))}
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Số concept đã chụp (đầu trang chủ)</label>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            className={inputCls}
+            value={form.conceptsCount ?? DEFAULT_SITE_STATS.conceptsCount}
+            onChange={(e) => set("conceptsCount", e.target.value === "" ? 0 : Math.floor(Number(e.target.value)))}
+          />
         </div>
         <div className="md:col-span-2">
           <label className={labelCls}>Giới thiệu</label>

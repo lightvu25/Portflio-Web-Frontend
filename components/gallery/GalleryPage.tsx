@@ -34,13 +34,11 @@ export function GalleryPage({
       </section>
       <section className="flex-1">
         <div className="mx-auto max-w-[1400px] px-5 py-10 md:px-10 md:py-14">
-          <Reveal from="up">
-            {loadError ? (
-              <DataFetchError />
-            ) : (
-              <GalleryGrid photos={photos} categories={categories} initialCategory={initialCategory} />
-            )}
-          </Reveal>
+          {loadError ? (
+            <DataFetchError />
+          ) : (
+            <GalleryGrid photos={photos} categories={categories} initialCategory={initialCategory} />
+          )}
         </div>
       </section>
     </main>

@@ -11,31 +11,21 @@ const cardWidth =
 function PhotoGroup({ photos }: { photos: Photo[] }) {
   return (
     <div data-group className="flex shrink-0 gap-6 pr-6">
-      {photos.map((p, idx) => (
+      {photos.map((p) => (
         <Link
           key={p.id}
           href={`/gallery/${p.id}`}
           aria-label={p.altText ?? p.title ?? "Xem ảnh"}
-          className={`group/img relative flex shrink-0 flex-col rounded-[10px] border border-dark-15 bg-[#FAF9F5] p-2 pb-2.5 shadow-[0_12px_28px_-14px_rgba(18,18,20,0.16)] transition-[transform,box-shadow,border-color] duration-300 hover:scale-[1.02] hover:border-brand-55/60 hover:shadow-[0_18px_36px_-12px_rgba(107,142,90,0.24)] sm:p-2.5 sm:pb-3 ${cardWidth}`}
+          className={`group/img relative block aspect-[4/5] shrink-0 overflow-hidden rounded-[14px] bg-dark-08 transition-[transform,box-shadow] duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/50 ${cardWidth}`}
         >
-          <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[4px] bg-dark-08 ring-1 ring-black/10">
-            <Image
-              src={p.imageUrl}
-              alt={p.altText ?? p.title ?? "Ảnh"}
-              fill
-              quality={100}
-              sizes="(min-width: 1480px) 600px, (min-width: 1024px) 45vw, (min-width: 640px) 60vw, 90vw"
-              className="object-cover transition-transform duration-500 ease-out group-hover/img:scale-[1.04]"
-            />
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-2 px-0.5">
-            <span className="truncate font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-grey-50">
-              {p.categories[0]?.name ?? "Bấu Graphy"}
-            </span>
-            <span className="shrink-0 font-mono text-[10px] tracking-[0.12em] text-grey-40 transition-colors group-hover/img:text-brand-55">
-              #{String(idx + 1).padStart(2, "0")} ↗
-            </span>
-          </div>
+          <Image
+            src={p.imageUrl}
+            alt={p.altText ?? p.title ?? "Ảnh"}
+            fill
+            quality={100}
+            sizes="(min-width: 1480px) 600px, (min-width: 1024px) 45vw, (min-width: 640px) 60vw, 90vw"
+            className="object-cover"
+          />
         </Link>
       ))}
     </div>

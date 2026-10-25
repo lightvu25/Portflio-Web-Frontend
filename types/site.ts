@@ -18,6 +18,12 @@ export interface SiteSettings {
   id: number;
   photographerName: string;
   experience: string | null;
+  /** Number of years of experience displayed in homepage scroll stats (default 2). */
+  experienceYears?: number | null;
+  /** Total clients photographed displayed in homepage scroll stats (default 100). */
+  clientsCount?: number | null;
+  /** Total concepts photographed displayed in homepage scroll stats (default 10). */
+  conceptsCount?: number | null;
   bio: string | null;
   facebookUrl: string | null;
   instagramUrl: string | null;
@@ -42,6 +48,9 @@ export interface SiteSettings {
 export interface SiteSettingsRequest {
   photographerName: string;
   experience?: string;
+  experienceYears?: number;
+  clientsCount?: number;
+  conceptsCount?: number;
   bio?: string;
   facebookUrl?: string;
   instagramUrl?: string;

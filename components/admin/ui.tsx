@@ -107,3 +107,36 @@ export function Modal({
 export const inputCls =
   "w-full rounded-xl bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-500/40";
 export const labelCls = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500";
+
+export function AdminCheckbox({
+  checked,
+  onChange,
+  label,
+  className = "",
+}: {
+  checked: boolean;
+  onChange: (shiftKey: boolean) => void;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onChange(e.shiftKey);
+      }}
+      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[11px] font-bold transition-colors ${
+        checked
+          ? "border-[#6B8E5A] bg-[#6B8E5A] text-white"
+          : "border-gray-300 bg-white text-transparent hover:border-[#6B8E5A]"
+      } ${className}`}
+    >
+      ✓
+    </button>
+  );
+}
+
