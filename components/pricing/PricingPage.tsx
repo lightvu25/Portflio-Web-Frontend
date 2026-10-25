@@ -45,6 +45,33 @@ const SURCHARGES = [
   },
 ];
 
+const BOOKING_STEPS = [
+  {
+    step: "01",
+    title: "Chọn gói chụp & thời lượng",
+    detail:
+      "Lựa chọn gói chụp theo số lượng người (Cá nhân, 2 người, 3 người) và hình thức buổi chụp (Nửa ngày hoặc Cả ngày), hoặc nhấn “Đặt gói này” ngay trên bảng giá.",
+  },
+  {
+    step: "02",
+    title: "Chọn ngày, buổi chụp trống & điền thông tin",
+    detail:
+      "Chọn ngày dự kiến chụp để hệ thống tự động kiểm tra các buổi (Sáng, Chiều, Tối hoặc Cả ngày) còn trống, sau đó điền Họ tên, Số điện thoại, Địa chỉ cụ thể muốn chụp và Lưu ý với thợ.",
+  },
+  {
+    step: "03",
+    title: "Nhận mã đặt lịch & giữ chỗ tạm thời 30 phút",
+    detail:
+      "Nhấn “Đặt lịch ngay” để gửi yêu cầu. Hệ thống sẽ ghi nhận đơn ở trạng thái Chờ xử lý, cấp Mã đặt lịch và giữ chỗ tạm thời trong vòng 30 phút.",
+  },
+  {
+    step: "04",
+    title: "Gửi tin nhắn xác nhận & đặt cọc giữ lịch",
+    detail:
+      "Sao chép mẫu tin nhắn tóm tắt tự động trên màn hình và gửi cho Bấu qua Facebook, Instagram hoặc Zalo để trao đổi chi tiết và hoàn tất đặt cọc giữ lịch chính thức.",
+  },
+];
+
 /** The three customer groups — keyed by PricingPackage.groupSize. */
 const GROUPS = [
   { size: 1, title: "Cá nhân" },
@@ -301,7 +328,7 @@ export function PricingPage({
         </div>
 
         {/* Surcharges & conditions (separated from package prices) */}
-        <div className="mx-auto max-w-[1400px] px-5 pb-16 md:px-10">
+        <div className="mx-auto max-w-[1400px] px-5 pb-12 md:px-10">
           <h2 className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
             Phụ phí &amp; Lưu ý
           </h2>
@@ -319,6 +346,69 @@ export function PricingPage({
                 </p>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Booking process & photo delivery turnaround */}
+        <div className="mx-auto max-w-[1400px] px-5 pb-16 md:px-10 md:pb-20">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
+                Hướng dẫn đặt lịch
+              </h2>
+              <p className="mt-2 font-semibold text-2xl font-semibold text-absolutewhite md:text-3xl">
+                Quy trình đặt lịch
+              </p>
+            </div>
+            <Link
+              href="/booking"
+              className="inline-flex items-center gap-2 rounded-[10px] bg-brand-55 px-5 py-2.5 font-medium text-sm text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60"
+            >
+              Đi tới trang Đặt lịch ↗
+            </Link>
+          </div>
+
+          <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {BOOKING_STEPS.map((item) => (
+              <li
+                key={item.step}
+                className="flex flex-col rounded-[14px] border border-dark-12 bg-dark-08 p-6"
+              >
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-55/15 font-mono text-xs font-semibold tracking-[0.12em] text-brand-55">
+                  {item.step}
+                </span>
+                <h3 className="mt-4 font-semibold text-base font-semibold text-absolutewhite">
+                  {item.title}
+                </h3>
+                <p className="mt-2 flex-1 text-sm leading-6 text-grey-70">
+                  {item.detail}
+                </p>
+              </li>
+            ))}
+          </ol>
+
+          <div
+            role="note"
+            aria-label="Thời hạn giao ảnh"
+            className="mt-6 flex flex-col items-start justify-between gap-4 rounded-[14px] border border-brand-55/35 bg-brand-55/10 px-6 py-5 sm:flex-row sm:items-center"
+          >
+            <div className="flex items-start gap-3.5 sm:items-center">
+              <span
+                aria-hidden="true"
+                className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-55 text-white sm:mt-0"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+                  <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              <p className="font-semibold text-sm font-semibold leading-6 text-absolutewhite sm:text-base">
+                Thời gian giao ảnh: trong vòng 01 tuần kể từ khi khách hàng lựa chọn ảnh.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-dark-03 px-3.5 py-1 font-mono text-xs font-medium uppercase tracking-[0.12em] text-brand-55">
+              Cam kết hậu kỳ
+            </span>
           </div>
         </div>
       </section>

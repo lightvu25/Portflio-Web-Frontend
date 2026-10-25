@@ -44,9 +44,7 @@ export async function HomePage() {
     <main className="flex min-h-screen w-full flex-col bg-dark-03 text-absolutewhite">
       <CameraIntro />
       <div className="relative z-10 bg-dark-03">
-        <Reveal>
-          <HeroSection site={site} />
-        </Reveal>
+        <HeroSection site={site} />
         <PhotographyMarquee availableCategories={categories.map((c) => c.name)} />
         {/* Photo-driven sections: on fetch failure show a single retry block
             instead of empty gaps; about/services still render their own content. */}

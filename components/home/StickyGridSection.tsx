@@ -69,19 +69,22 @@ export function StickyGridSection({ photos }: { photos: Photo[] }) {
       const mm = gsap.matchMedia();
 
       mm.add("(prefers-reduced-motion: no-preference)", () => {
-        let titleOffsetY = 0;
-        let isContentVisible = false;
-
-        // 1. initContent()
-        const computeTitleOffset = () => {
+        // 1. initContent() — compute dynamic vertical center offset for title
+        const getTitleOffsetY = () => {
           const contentH = content.offsetHeight || 1;
           const dy = (contentH - title.offsetHeight) / 2;
-          titleOffsetY = (dy / contentH) * 100;
+          return (dy / contentH) * 100;
         };
 
-        gsap.set([description, button], { opacity: 0, pointerEvents: "none" });
-        computeTitleOffset();
-        gsap.set(title, { yPercent: titleOffsetY });
+        gsap.set(title, {
+          autoAlpha: 0,
+          yPercent: getTitleOffsetY(),
+        });
+        gsap.set([description, button], {
+          autoAlpha: 0,
+          y: 16,
+          pointerEvents: "none",
+        });
 
         // 2. groupItemsByColumn()
         const columns: HTMLElement[][] = Array.from({ length: NUM_COLUMNS }, () => []);
@@ -89,31 +92,25 @@ export function StickyGridSection({ photos }: { photos: Photo[] }) {
           columns[index % NUM_COLUMNS].push(item);
         });
 
-        // 3. addParallaxOnScroll()
-        gsap.from(wrapper, {
-          yPercent: -100,
-          ease: "none",
-          scrollTrigger: {
-            trigger: block,
-            start: "top bottom",
-            end: "top top",
-            scrub: true,
+        // 3. Scrubbed title entry before sticky lock so scrolling up/down is 100% reversible
+        gsap.fromTo(
+          title,
+          { autoAlpha: 0 },
+          {
+            autoAlpha: 1,
+            ease: "power1.out",
+            overwrite: "auto",
+            scrollTrigger: {
+              trigger: block,
+              start: "top 75%",
+              end: "top 15%",
+              scrub: 0.35,
+              invalidateOnRefresh: true,
+            },
           },
-        });
+        );
 
-        // 4. animateTitleOnScroll()
-        gsap.from(title, {
-          opacity: 0,
-          duration: 0.7,
-          ease: "power1.out",
-          scrollTrigger: {
-            trigger: block,
-            start: "top 57%",
-            toggleActions: "play none none reset",
-          },
-        });
-
-        // 5. gridRevealTimeline(columns)
+        // 4. gridRevealTimeline(columns)
         const gridRevealTimeline = (cols = columns) => {
           const tl = gsap.timeline();
           cols.forEach((column, colIndex) => {
@@ -138,81 +135,80 @@ export function StickyGridSection({ photos }: { photos: Photo[] }) {
           return tl;
         };
 
-        // 6. gridZoomTimeline(columns)
+        // 5. gridZoomTimeline(columns) — zooms grid, parts columns, and scrubs title/CTA reveal
         const gridZoomTimeline = (cols = columns) => {
           const tl = gsap.timeline({ defaults: { duration: 1, ease: "power3.inOut" } });
-          tl.to(grid, { scale: 2.05 });
-          tl.to(cols[0], { xPercent: -40 }, "<");
-          tl.to(cols[2], { xPercent: 40 }, "<");
+          tl.to(grid, { scale: 2.05 }, 0);
+          tl.to(cols[0], { xPercent: -40 }, 0);
+          tl.to(cols[2], { xPercent: 40 }, 0);
           tl.to(
             cols[1],
             {
               yPercent: (index) => (index < Math.floor(cols[1].length / 2) ? -1 : 1) * 40,
-              duration: 0.5,
-              ease: "power1.inOut",
+              duration: 0.55,
+              ease: "power2.inOut",
             },
-            "-=0.5",
+            0.35,
+          );
+          tl.fromTo(
+            title,
+            { yPercent: () => getTitleOffsetY() },
+            {
+              yPercent: 0,
+              duration: 0.5,
+              ease: "power2.inOut",
+              immediateRender: false,
+            },
+            0.42,
+          );
+          tl.fromTo(
+            [description, button],
+            { autoAlpha: 0, y: 16 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              duration: 0.38,
+              stagger: 0.05,
+              ease: "power2.out",
+              immediateRender: false,
+            },
+            0.56,
           );
           return tl;
         };
 
-        // 7. toggleContent(isVisible)
-        const toggleContent = (isVisible = true) => {
-          isContentVisible = isVisible;
-          gsap
-            .timeline({ defaults: { overwrite: true } })
-            .to(title, {
-              yPercent: isVisible ? 0 : titleOffsetY,
-              duration: 0.7,
-              ease: "power2.inOut",
-            })
-            .to(
-              [description, button],
-              {
-                opacity: isVisible ? 1 : 0,
-                duration: 0.4,
-                ease: `power1.${isVisible ? "inOut" : "out"}`,
-                pointerEvents: isVisible ? "all" : "none",
-              },
-              isVisible ? "-=90%" : "<",
-            );
-        };
-
-        // 8. animateGridOnScroll()
+        // 6. Unified scrubbed mainTimeline — deterministic in both scroll directions
         const mainTimeline = gsap.timeline({
           scrollTrigger: {
             trigger: block,
-            start: "top 25%",
+            start: "top top",
             end: "bottom bottom",
-            scrub: true,
+            scrub: 0.5,
             invalidateOnRefresh: true,
+            onUpdate: (self) => {
+              const interactive = self.progress >= 0.72;
+              button.style.pointerEvents = interactive ? "auto" : "none";
+            },
           },
         });
 
         mainTimeline
-          .add(gridRevealTimeline())
-          .add(gridZoomTimeline(), "-=0.6")
-          .add(() => toggleContent(mainTimeline.scrollTrigger?.direction === 1), "-=0.32");
-
-        // Recalculate titleOffsetY when viewport resizes
-        const onRefreshInit = () => {
-          computeTitleOffset();
-          if (!isContentVisible) {
-            gsap.set(title, { yPercent: titleOffsetY });
-          }
-        };
-        ScrollTrigger.addEventListener("refreshInit", onRefreshInit);
-
-        return () => {
-          ScrollTrigger.removeEventListener("refreshInit", onRefreshInit);
-        };
+          .set(title, { yPercent: () => getTitleOffsetY() }, 0)
+          .set([description, button], { autoAlpha: 0, y: 16 }, 0)
+          .add(gridRevealTimeline(), 0)
+          .add(gridZoomTimeline(), "-=0.55");
       });
 
       mm.add("(prefers-reduced-motion: reduce)", () => {
         gsap.set([wrapper, title, description, button, grid, ...items], {
           clearProps: "all",
         });
-        gsap.set([description, button], { opacity: 1, pointerEvents: "all" });
+        gsap.set([title, description, button], {
+          autoAlpha: 1,
+          y: 0,
+          yPercent: 0,
+          pointerEvents: "auto",
+        });
       });
 
       return () => {

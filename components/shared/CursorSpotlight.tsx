@@ -47,16 +47,51 @@ export function CursorSpotlight({
     let rafId = 0;
     let targetX = -9999;
     let targetY = -9999;
+    let currentX = -9999;
+    let currentY = -9999;
     let isVisible = false;
     let listening = false;
 
-    const flushPosition = () => {
+    const LERP_FACTOR = 0.28;
+    const STOP_EPSILON = 0.45;
+
+    const renderFrame = () => {
       rafId = 0;
-      el.style.setProperty("--spotlight-x", `${targetX}px`);
-      el.style.setProperty("--spotlight-y", `${targetY}px`);
+
+      const dx = targetX - currentX;
+      const dy = targetY - currentY;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist <= STOP_EPSILON) {
+        currentX = targetX;
+        currentY = targetY;
+      } else {
+        currentX += dx * LERP_FACTOR;
+        currentY += dy * LERP_FACTOR;
+        rafId = window.requestAnimationFrame(renderFrame);
+      }
+
+      el.style.setProperty("--spotlight-x", `${currentX.toFixed(1)}px`);
+      el.style.setProperty("--spotlight-y", `${currentY.toFixed(1)}px`);
+
       if (!isVisible) {
         isVisible = true;
         el.dataset.active = "true";
+      }
+    };
+
+    const updateTarget = (clientX: number, clientY: number) => {
+      targetX = clientX;
+      targetY = clientY;
+
+      // Snap immediately on first entry so the spotlight never flies in from off-screen
+      if (!isVisible || currentX === -9999) {
+        currentX = clientX;
+        currentY = clientY;
+      }
+
+      if (rafId === 0) {
+        rafId = window.requestAnimationFrame(renderFrame);
       }
     };
 
@@ -64,14 +99,16 @@ export function CursorSpotlight({
       if (e.pointerType && e.pointerType !== "mouse" && e.pointerType !== "pen") {
         return;
       }
-      targetX = e.clientX;
-      targetY = e.clientY;
-      if (rafId === 0) {
-        rafId = window.requestAnimationFrame(flushPosition);
+      updateTarget(e.clientX, e.clientY);
+    };
+
+    const onDragOver = (e: DragEvent) => {
+      if (e.clientX > 0 || e.clientY > 0) {
+        updateTarget(e.clientX, e.clientY);
       }
     };
 
-    const onPointerLeave = () => {
+    const hideSpotlight = () => {
       if (rafId !== 0) {
         window.cancelAnimationFrame(rafId);
         rafId = 0;
@@ -80,21 +117,56 @@ export function CursorSpotlight({
       el.dataset.active = "false";
     };
 
+    const onMouseOut = (e: MouseEvent) => {
+      // Only hide when the cursor actually leaves the browser viewport window,
+      // not when crossing internal sticky/composited section boundaries.
+      if (e.relatedTarget !== null) return;
+      const outOfBounds =
+        e.clientX <= 0 ||
+        e.clientY <= 0 ||
+        e.clientX >= window.innerWidth ||
+        e.clientY >= window.innerHeight;
+      if (outOfBounds) {
+        hideSpotlight();
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        hideSpotlight();
+      }
+    };
+
     const updateSubscription = () => {
       const shouldListen = finePointerMq.matches && !reducedMotionMq.matches;
       if (shouldListen && !listening) {
         listening = true;
-        window.addEventListener("pointermove", onPointerMove, { passive: true });
-        document.documentElement.addEventListener("pointerleave", onPointerLeave, {
+        window.addEventListener("pointermove", onPointerMove, {
+          capture: true,
           passive: true,
         });
-        window.addEventListener("blur", onPointerLeave, { passive: true });
+        window.addEventListener("pointerdown", onPointerMove, {
+          capture: true,
+          passive: true,
+        });
+        window.addEventListener("dragover", onDragOver, {
+          capture: true,
+          passive: true,
+        });
+        window.addEventListener("mouseout", onMouseOut, { passive: true });
+        window.addEventListener("blur", hideSpotlight, { passive: true });
+        document.addEventListener("visibilitychange", onVisibilityChange, {
+          passive: true,
+        });
       } else if (!shouldListen && listening) {
         listening = false;
-        window.removeEventListener("pointermove", onPointerMove);
-        document.documentElement.removeEventListener("pointerleave", onPointerLeave);
-        window.removeEventListener("blur", onPointerLeave);
-        onPointerLeave();
+        window.removeEventListener("pointermove", onPointerMove, true);
+        window.removeEventListener("pointerdown", onPointerMove, true);
+        window.removeEventListener("dragover", onDragOver, true);
+        window.removeEventListener("mouseout", onMouseOut);
+        window.removeEventListener("blur", hideSpotlight);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+        hideSpotlight();
       }
     };
 
@@ -107,9 +179,12 @@ export function CursorSpotlight({
       finePointerMq.removeEventListener("change", updateSubscription);
       reducedMotionMq.removeEventListener("change", updateSubscription);
       if (listening) {
-        window.removeEventListener("pointermove", onPointerMove);
-        document.documentElement.removeEventListener("pointerleave", onPointerLeave);
-        window.removeEventListener("blur", onPointerLeave);
+        window.removeEventListener("pointermove", onPointerMove, true);
+        window.removeEventListener("pointerdown", onPointerMove, true);
+        window.removeEventListener("dragover", onDragOver, true);
+        window.removeEventListener("mouseout", onMouseOut);
+        window.removeEventListener("blur", hideSpotlight);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
       }
     };
   }, [isAdmin]);
