@@ -11,18 +11,30 @@ import styles from "./StickyGridSection.module.css";
 const GRID_COUNT = 12;
 const NUM_COLUMNS = 3;
 
+/** Deterministic subtle Polaroid tilt angles (degrees) matching /gallery. */
+const POLAROID_TILTS = [
+  -1.8, 1.5, -1.3, 1.9, -1.5, 1.7, -1.6, 1.4, -1.9, 1.3, -1.4, 1.6,
+];
+
+interface PolaroidSlot {
+  slotKey: string;
+  photo: Photo;
+  tilt: number;
+  categoryLabel: string;
+  displayIndex: string;
+}
+
 /**
- * Scroll-driven sticky 3×4 photo grid hero — adapted from Codrops
- * "Sticky Grid Scroll" (MIT License, Theo Plawinski & Codrops).
+ * Scroll-driven sticky 3-column Polaroid hero with continuous vertical
+ * infinite auto-scroll per column and stage-by-stage ScrollTrigger auto-align.
  *
- * Mounted at the top of the homepage on an ivory (#F5F3EC) backdrop with a
- * green gradient center panel so text never clashes with grid photos.
  * Scrubbed scroll sequence:
- *  1. At scrollY=0: Greeting ("Xin chào cả nhà, tui tên là") + H1 photographer name.
- *  2. Photo columns slide in (`gridRevealTimeline`) as greeting fades out.
- *  3. Stats appear sequentially: clientsCount+ → experienceYears → conceptsCount+.
- *  4. Stats fade out while grid zooms & separates (`gridZoomTimeline`).
- *  5. Final CTA block ("Khoảnh khắc đáng giữ" + booking/gallery links) fades in.
+ *  1. Stage 1 (scrollY=0): Greeting ("Xin chào cả nhà, tui tên là") + H1 photographer name
+ *     over continuously auto-scrolling Polaroid columns.
+ *  2. Stage 2 (~50%): Stats appear sequentially with 0 → N counters
+ *     (clientsCount+ → experienceYears → conceptsCount+).
+ *  3. Stage 3 (100%): Stats fade out while Polaroid columns zoom & separate to
+ *     frame the final CTA block ("Khoảnh khắc đáng giữ" + booking/gallery links).
  */
 export function StickyGridSection({
   photos,
@@ -35,21 +47,30 @@ export function StickyGridSection({
 }) {
   const blockRef = useRef<HTMLElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const greetingRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const ctaRef = useRef<HTMLDivElement>(null);
-  const gridRef = useRef<HTMLUListElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const displayName = (photographerName?.trim() || "Bấu Chụp Choẹt").toUpperCase();
 
-  // Ensure exactly 12 items for the 3×4 grid, cycling through published photos if < 12 exist.
-  const gridPhotos = useMemo(() => {
+  // Ensure 12 Polaroid slots distributed across 3 columns (4 original cards per column).
+  const gridColumns = useMemo(() => {
     if (photos.length === 0) return [];
-    return Array.from({ length: GRID_COUNT }, (_, i) => ({
-      slotKey: `${photos[i % photos.length].id}-slot-${i}`,
-      photo: photos[i % photos.length],
-    }));
+    const cols: PolaroidSlot[][] = Array.from({ length: NUM_COLUMNS }, () => []);
+    for (let i = 0; i < GRID_COUNT; i++) {
+      const photo = photos[i % photos.length];
+      cols[i % NUM_COLUMNS].push({
+        slotKey: `${photo.id}-slot-${i}`,
+        photo,
+        tilt: POLAROID_TILTS[i % POLAROID_TILTS.length],
+        categoryLabel: photo.categories?.[0]?.name ?? "Bấu Chụp Choẹt",
+        displayIndex: String(i + 1).padStart(2, "0"),
+      });
+    }
+    return cols;
   }, [photos]);
 
   // Debounced ScrollTrigger.refresh() as grid images finish decoding.
@@ -64,16 +85,22 @@ export function StickyGridSection({
     () => {
       const block = blockRef.current;
       const wrapper = wrapperRef.current;
+      const panel = panelRef.current;
       const greeting = greetingRef.current;
       const statsContainer = statsRef.current;
       const ctaContainer = ctaRef.current;
       const grid = gridRef.current;
 
-      if (!block || !wrapper || !greeting || !statsContainer || !ctaContainer || !grid) {
+      if (!block || !wrapper || !panel || !greeting || !statsContainer || !ctaContainer || !grid) {
         return;
       }
 
-      const items = Array.from(grid.querySelectorAll<HTMLElement>("[data-grid-item]"));
+      const colEls = Array.from(grid.querySelectorAll<HTMLElement>("[data-grid-col]"));
+      const trackEls = Array.from(grid.querySelectorAll<HTMLElement>("[data-col-track]"));
+      const polaroidEls = Array.from(grid.querySelectorAll<HTMLElement>("[data-polaroid]"));
+      const greetingItems = Array.from(
+        greeting.querySelectorAll<HTMLElement>("[data-greeting-item]"),
+      );
       const statEls = Array.from(statsContainer.querySelectorAll<HTMLElement>("[data-stat-item]"));
       const statValueEls = statEls.map((el) =>
         el.querySelector<HTMLElement>("[data-stat-value]"),
@@ -81,7 +108,7 @@ export function StickyGridSection({
       const statTargets = statValueEls.map((el) => Number(el?.dataset.target ?? 0));
       const statSuffixes = statValueEls.map((el) => el?.dataset.suffix ?? "");
       const ctaEls = Array.from(ctaContainer.querySelectorAll<HTMLElement>("[data-cta-item]"));
-      if (items.length === 0) return;
+      if (colEls.length === 0) return;
 
       const setStatText = (idx: number, raw: number) => {
         const el = statValueEls[idx];
@@ -103,6 +130,62 @@ export function StickyGridSection({
         gsap.set(greeting, { autoAlpha: 1, yPercent: 0 });
         gsap.set(statEls, { autoAlpha: 0, y: 24 });
         gsap.set(ctaEls, { autoAlpha: 0, y: 24 });
+
+        // Initial page-load fade-in animation (targets inner elements so it never conflicts with ScrollTrigger)
+        const hasCameraIntro = Boolean(
+          document.querySelector('[data-camera-intro="active"]'),
+        );
+        const introDelay = hasCameraIntro ? 0.22 : 0.04;
+        const loadTl = gsap.timeline({ delay: introDelay });
+        loadTl
+          .fromTo(
+            panel,
+            { autoAlpha: 0, scale: 0.94 },
+            { autoAlpha: 1, scale: 1, duration: 0.9, ease: "power2.out" },
+            0,
+          )
+          .fromTo(
+            polaroidEls,
+            { autoAlpha: 0, scale: 0.9, y: 28 },
+            {
+              autoAlpha: 1,
+              scale: 1,
+              y: 0,
+              duration: 0.85,
+              stagger: { each: 0.03, from: "center" },
+              ease: "power2.out",
+              clearProps: "scale,y",
+            },
+            0.06,
+          )
+          .fromTo(
+            greetingItems,
+            { autoAlpha: 0, y: 22 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              duration: 0.8,
+              stagger: 0.14,
+              ease: "power3.out",
+            },
+            0.18,
+          );
+
+        // Continuous vertical infinite auto-scroll per column:
+        // Columns 0 & 2 drift upward (0% -> -50%), Column 1 drifts downward (-50% -> 0%).
+        const autoScrollTweens = trackEls.map((track, colIdx) => {
+          const moveUp = colIdx % 2 === 0;
+          return gsap.fromTo(
+            track,
+            { yPercent: moveUp ? 0 : -50 },
+            {
+              yPercent: moveUp ? -50 : 0,
+              duration: moveUp ? 26 + colIdx * 2 : 30,
+              ease: "none",
+              repeat: -1,
+            },
+          );
+        });
 
         const counterValues = statTargets.map(() => ({ val: 0 }));
         const counterActive = statTargets.map(() => false);
@@ -133,28 +216,16 @@ export function StickyGridSection({
           });
         };
 
-        // Bucket the 12 grid items into 3 columns (index % 3)
-        const columns: HTMLElement[][] = Array.from({ length: NUM_COLUMNS }, () => []);
-        items.forEach((item, index) => {
-          columns[index % NUM_COLUMNS].push(item);
-        });
-
-        const gridRevealTimeline = (cols = columns) => {
+        const gridRevealTimeline = () => {
           const tl = gsap.timeline();
-          cols.forEach((column, colIndex) => {
+          colEls.forEach((colEl, colIndex) => {
             const fromTop = colIndex % 2 === 0;
-            tl.from(
-              column,
+            tl.fromTo(
+              colEl,
+              { y: fromTop ? -64 : 64 },
               {
-                y: () => {
-                  const wh = window.innerHeight;
-                  const dy = wh - (wh - grid.offsetHeight) / 2;
-                  return dy * (fromTop ? -1 : 1);
-                },
-                stagger: {
-                  each: 0.06,
-                  from: fromTop ? "end" : "start",
-                },
+                y: 0,
+                duration: 0.68,
                 ease: "power1.inOut",
               },
               "grid-reveal",
@@ -163,20 +234,22 @@ export function StickyGridSection({
           return tl;
         };
 
-        const gridZoomTimeline = (cols = columns) => {
+        const gridZoomTimeline = () => {
           const tl = gsap.timeline({ defaults: { duration: 1, ease: "power3.inOut" } });
-          tl.to(grid, { scale: 2.05 });
-          tl.to(cols[0], { xPercent: -40 }, "<");
-          tl.to(cols[2], { xPercent: 40 }, "<");
-          tl.to(
-            cols[1],
-            {
-              yPercent: (index) => (index < Math.floor(cols[1].length / 2) ? -1 : 1) * 40,
-              duration: 0.5,
-              ease: "power1.inOut",
-            },
-            "-=0.5",
-          );
+          tl.to(grid, { scale: 1.65 });
+          if (colEls[0]) tl.to(colEls[0], { xPercent: -24 }, "<");
+          if (colEls[2]) tl.to(colEls[2], { xPercent: 24 }, "<");
+          if (colEls[1]) {
+            tl.to(
+              colEls[1],
+              {
+                autoAlpha: 0.35,
+                duration: 0.6,
+                ease: "power2.inOut",
+              },
+              "<0.15",
+            );
+          }
           return tl;
         };
 
@@ -186,12 +259,40 @@ export function StickyGridSection({
             trigger: block,
             start: () => `top top+=${headerH}`,
             end: "bottom bottom",
-            scrub: true,
+            scrub: 0.35,
             invalidateOnRefresh: true,
+            snap: {
+              snapTo: (value, self) => {
+                const total = mainTimeline.duration() || 1;
+                const statsProgress =
+                  (mainTimeline.labels["stage-stats"] ?? total * 0.48) / total;
+                const points = [0, statsProgress, 1];
+                const dir = self?.direction ?? 0;
+                const threshold = 0.04;
+                if (dir > 0) {
+                  for (const p of points) {
+                    if (p >= value - threshold) return p;
+                  }
+                  return 1;
+                }
+                if (dir < 0) {
+                  for (let i = points.length - 1; i >= 0; i--) {
+                    if (points[i] <= value + threshold) return points[i];
+                  }
+                  return 0;
+                }
+                return gsap.utils.snap(points, value);
+              },
+              inertia: false,
+              duration: { min: 0.28, max: 0.55 },
+              delay: 0.06,
+              ease: "power2.inOut",
+            },
           },
         });
 
         mainTimeline
+          .addLabel("stage-greeting", 0)
           .add(gridRevealTimeline(), "reveal")
           .to(
             greeting,
@@ -210,6 +311,7 @@ export function StickyGridSection({
             },
             ">-0.05",
           )
+          .addLabel("stage-stats", "+=0.1")
           .to(
             statEls,
             {
@@ -219,7 +321,7 @@ export function StickyGridSection({
               duration: 0.28,
               ease: "power2.in",
             },
-            "+=0.42",
+            "+=0.32",
           )
           .add(gridZoomTimeline(), "<")
           .fromTo(
@@ -234,21 +336,38 @@ export function StickyGridSection({
             },
             "-=0.4",
           )
-          .to({}, { duration: 0.2 });
+          .to({}, { duration: 0.2 })
+          .addLabel("stage-cta");
 
         ScrollTrigger.addEventListener("refreshInit", measureHeader);
 
         return () => {
           ScrollTrigger.removeEventListener("refreshInit", measureHeader);
+          loadTl.kill();
+          autoScrollTweens.forEach((t) => t.kill());
           counterTweens.forEach((t) => t?.kill());
         };
       });
 
       mm.add("(prefers-reduced-motion: reduce)", () => {
         statTargets.forEach((target, idx) => setStatText(idx, target));
-        gsap.set([wrapper, greeting, ...statEls, ...ctaEls, grid, ...items], {
-          clearProps: "all",
-        });
+        gsap.set(
+          [
+            wrapper,
+            panel,
+            greeting,
+            ...greetingItems,
+            ...statEls,
+            ...ctaEls,
+            grid,
+            ...colEls,
+            ...trackEls,
+            ...polaroidEls,
+          ],
+          {
+            clearProps: "all",
+          },
+        );
       });
 
       return () => {
@@ -259,7 +378,7 @@ export function StickyGridSection({
     {
       scope: blockRef,
       dependencies: [
-        gridPhotos.length,
+        gridColumns.length,
         stats.clientsCount,
         stats.experienceYears,
         stats.conceptsCount,
@@ -267,7 +386,7 @@ export function StickyGridSection({
     },
   );
 
-  if (gridPhotos.length === 0) return null;
+  if (gridColumns.length === 0) return null;
 
   return (
     <section
@@ -277,11 +396,15 @@ export function StickyGridSection({
     >
       <div ref={wrapperRef} className={styles.wrapper}>
         <div className={styles.content}>
-          <div className={styles.panel}>
+          <div ref={panelRef} data-hero-panel className={styles.panel}>
             {/* Stage 1: Greeting + H1 (visible immediately at scrollY=0) */}
             <div ref={greetingRef} data-stage="greeting" className={styles.greeting}>
-              <span className={styles.eyebrow}>Xin chào cả nhà, tui tên là</span>
-              <h1 className={styles.heroTitle}>{displayName}</h1>
+              <span data-greeting-item className={styles.eyebrow}>
+                Xin chào cả nhà, tui tên là
+              </span>
+              <h1 data-greeting-item className={styles.heroTitle}>
+                {displayName}
+              </h1>
             </div>
 
             {/* Stage 2: Sequential stats */}
@@ -337,7 +460,7 @@ export function StickyGridSection({
                 tràn đầy cảm xúc qua ống kính của Bấu.
               </p>
               <div data-cta-item className={`${styles.actions} ${styles.ctaItem}`}>
-                <Link href="/booking" className={styles.primaryButton}>
+                <Link href="/pricing#booking" className={styles.primaryButton}>
                   Đặt lịch ngay
                 </Link>
                 <Link href="/gallery" className={styles.secondaryButton}>
@@ -349,21 +472,66 @@ export function StickyGridSection({
         </div>
 
         <div className={styles.gallery}>
-          <ul ref={gridRef} className={styles.grid}>
-            {gridPhotos.map(({ slotKey, photo }, idx) => (
-              <li key={slotKey} data-grid-item className={styles.item}>
-                <Image
-                  src={photo.imageUrl}
-                  alt={photo.altText ?? photo.title ?? `Ảnh bộ sưu tập ${idx + 1}`}
-                  fill
-                  quality={100}
-                  sizes="(min-width: 1280px) 1000px, (min-width: 768px) 70vw, 100vw"
-                  onLoad={handleImageLoad}
-                  className={styles.image}
-                />
-              </li>
-            ))}
-          </ul>
+          <div ref={gridRef} className={styles.grid}>
+            {gridColumns.map((colSlots, colIdx) => {
+              const trackItems = [
+                ...colSlots.map((slot) => ({ ...slot, isClone: false })),
+                ...colSlots.map((slot) => ({ ...slot, isClone: true })),
+              ];
+              return (
+                <div
+                  key={`col-${colIdx}`}
+                  data-grid-col={colIdx}
+                  className={styles.column}
+                >
+                  <div data-col-track={colIdx} className={styles.columnTrack}>
+                    {trackItems.map((slot, itemIdx) => (
+                      <div
+                        key={`${slot.slotKey}-${slot.isClone ? "clone" : "orig"}-${itemIdx}`}
+                        data-grid-item={slot.isClone ? undefined : ""}
+                        data-loop-clone={slot.isClone ? "true" : undefined}
+                        aria-hidden={slot.isClone ? true : undefined}
+                        style={{ transform: `rotate(${slot.tilt}deg)` }}
+                        className={
+                          slot.isClone
+                            ? `${styles.item} ${styles.loopClone}`
+                            : styles.item
+                        }
+                      >
+                        <div data-polaroid className={styles.polaroid}>
+                          <div className={styles.imageFrame}>
+                            <Image
+                              src={slot.photo.imageUrl}
+                              alt={
+                                slot.isClone
+                                  ? ""
+                                  : (slot.photo.altText ??
+                                    slot.photo.title ??
+                                    `Ảnh bộ sưu tập ${slot.displayIndex}`)
+                              }
+                              fill
+                              quality={100}
+                              sizes="(min-width: 1280px) 1000px, (min-width: 768px) 70vw, 100vw"
+                              onLoad={slot.isClone ? undefined : handleImageLoad}
+                              className={styles.image}
+                            />
+                          </div>
+                          <div className={styles.captionBar}>
+                            <span className={styles.categoryLabel}>
+                              {slot.categoryLabel}
+                            </span>
+                            <span className={styles.indexLabel}>
+                              #{slot.displayIndex}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>

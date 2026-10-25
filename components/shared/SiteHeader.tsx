@@ -10,8 +10,6 @@ const navItems = [
   { label: "Trang chủ", href: "/" },
   { label: "Bộ sưu tập", href: "/gallery" },
   { label: "Dịch vụ", href: "/pricing" },
-  { label: "Đặt lịch", href: "/booking" },
-  { label: "Cảm nhận", href: "/feedback" },
 ];
 
 /** Editorial header with a morphing active-pill that slides between nav items. */
@@ -85,10 +83,10 @@ export function SiteHeader() {
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <Link
-            href="/booking"
+            href="/pricing#booking"
             className="inline-flex items-center justify-center rounded-full bg-brand-55 px-4 py-2 font-medium text-xs text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.03] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2 sm:px-5 sm:py-2.5 sm:text-sm md:px-6 md:py-3"
           >
-            Liên hệ
+            Đặt lịch
           </Link>
           {/* Mobile toggle */}
           <button
@@ -121,11 +119,11 @@ export function SiteHeader() {
             </Link>
           ))}
           <Link
-            href="/booking"
+            href="/pricing#booking"
             onClick={() => setOpen(false)}
             className="mt-2 block rounded-[10px] bg-brand-55 px-4 py-2.5 text-center font-medium text-sm text-white transition-colors hover:bg-brand-60"
           >
-            Đặt lịch ngay
+            Đặt lịch
           </Link>
         </nav>
       )}

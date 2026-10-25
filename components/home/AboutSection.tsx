@@ -136,7 +136,7 @@ export function AboutSection({ site }: { site: SiteSettings | null }) {
                   </a>
                 ))}
                 <Link
-                  href="/booking"
+                  href="/pricing#booking"
                   className="ml-auto rounded-[10px] bg-brand-55 px-6 py-2.5 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.03] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2"
                 >
                   Đặt lịch ngay

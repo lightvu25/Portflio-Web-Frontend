@@ -84,15 +84,15 @@ export function SiteFooter() {
             <ul className="mt-4 space-y-2.5">
               <li><Link href="/" className={linkCls}>Trang chủ</Link></li>
               <li><Link href="/gallery" className={linkCls}>Bộ sưu tập</Link></li>
-              <li><Link href="/feedback" className={linkCls}>Cảm nhận</Link></li>
+              <li><Link href="/pricing" className={linkCls}>Dịch vụ</Link></li>
             </ul>
           </div>
           <div>
             <h3 className={colTitle}>Đặt lịch</h3>
             <ul className="mt-4 space-y-2.5">
-              <li><Link href="/booking" className={linkCls}>Đặt lịch ngay</Link></li>
+              <li><Link href="/pricing#booking" className={linkCls}>Đặt lịch ngay</Link></li>
               <li><Link href="/pricing" className={linkCls}>Bảng giá</Link></li>
-              <li><Link href="/feedback" className={linkCls}>Gửi cảm nhận</Link></li>
+              <li><Link href="/#feedback" className={linkCls}>Gửi cảm nhận</Link></li>
             </ul>
           </div>
           <div>
@@ -112,7 +112,7 @@ export function SiteFooter() {
             <ul className="mt-4 space-y-2.5">
               <li><Link href="/pricing" className={linkCls}>Nửa ngày</Link></li>
               <li><Link href="/pricing" className={linkCls}>Cả ngày</Link></li>
-              <li><Link href="/booking" className={linkCls}>Lịch trống</Link></li>
+              <li><Link href="/pricing#booking" className={linkCls}>Lịch trống</Link></li>
             </ul>
           </div>
         </nav>
@@ -124,7 +124,7 @@ export function SiteFooter() {
           <div className="flex gap-6">
             <Link href="/pricing" className={`${linkCls} text-xs`}>Dịch vụ & Quyền lợi</Link>
             <span aria-hidden="true" className="text-dark-20">|</span>
-            <Link href="/booking" className={`${linkCls} text-xs`}>Đặt lịch</Link>
+            <Link href="/pricing#booking" className={`${linkCls} text-xs`}>Đặt lịch</Link>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
             <a href={instagramHref} target="_blank" rel="noreferrer" aria-label="Instagram" className={socialBtn}>

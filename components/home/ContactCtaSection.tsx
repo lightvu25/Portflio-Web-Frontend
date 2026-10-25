@@ -20,7 +20,7 @@ export function ContactCtaSection({ site }: { site: SiteSettings | null }) {
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
-            href="/booking"
+            href="/pricing#booking"
             className="rounded-[10px] bg-brand-55 px-8 py-3.5 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2"
           >
             Đặt lịch ngay

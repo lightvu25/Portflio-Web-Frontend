@@ -13,7 +13,7 @@ export function CtaArrowLink({
 }) {
   return (
     <Link
-      href="/booking"
+      href="/pricing#booking"
       aria-label={label}
       className={`inline-flex shrink-0 items-center justify-center rounded-full bg-brand-55 text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-105 hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2 ${className}`}
     >

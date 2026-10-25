@@ -1,14 +1,14 @@
-import { BookingPage } from "@/components/booking/BookingPage";
-import { fetchPricing } from "@/lib/data";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function Page() {
-  const packages = await fetchPricing();
-  return (
-    <BookingPage
-      packages={packages}
-      turnstileSiteKey={process.env.TURNSTILE_SITE_KEY}
-    />
-  );
+export default async function BookingRedirectPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ package?: string }>;
+}) {
+  const params = await searchParams;
+  const pkg = params?.package;
+  if (pkg) {
+    redirect(`/pricing?package=${encodeURIComponent(pkg)}#booking`);
+  }
+  redirect("/pricing#booking");
 }

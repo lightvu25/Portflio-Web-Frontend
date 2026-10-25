@@ -104,6 +104,53 @@
   z-index: 2;
 }
 
+/* Soft woven linen / fabric texture masked strictly to the green radial gradient */
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23f)' opacity='0.15'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 252, 242, 0.075) 0px,
+      rgba(255, 252, 242, 0.075) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(22, 36, 16, 0.08) 0px,
+      rgba(22, 36, 16, 0.08) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 252, 242, 0.04) 0px,
+      rgba(255, 252, 242, 0.04) 1px,
+      transparent 1px,
+      transparent 5px
+    );
+  background-size: 160px 160px, 100% 3px, 3px 100%, 7px 7px;
+  -webkit-mask-image: radial-gradient(
+    ellipse closest-side at 50% 50%,
+    rgba(0, 0, 0, 0.98) 0%,
+    rgba(0, 0, 0, 0.85) 38%,
+    rgba(0, 0, 0, 0.36) 68%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  mask-image: radial-gradient(
+    ellipse closest-side at 50% 50%,
+    rgba(0, 0, 0, 0.98) 0%,
+    rgba(0, 0, 0, 0.85) 38%,
+    rgba(0, 0, 0, 0.36) 68%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
 .greeting,
 .stats,
 .cta {
@@ -125,6 +172,7 @@
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.95);
   text-shadow: 0 2px 12px rgba(34, 52, 26, 0.35);
+  will-change: transform, opacity;
 }
 
 .heroTitle {
@@ -136,6 +184,7 @@
   text-transform: uppercase;
   color: #ffffff;
   text-shadow: 0 4px 24px rgba(26, 40, 20, 0.28);
+  will-change: transform, opacity;
 }
 
 .stats {
@@ -263,37 +312,67 @@
   }
 }
 
-/* ---------------- Gallery ---------------- */
+/* ---------------- Gallery (Polaroid Auto-Scroll Columns) ---------------- */
 
 .gallery {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate3d(-50%, -50%, 0);
-  width: calc(736 * var(--sg-rem));
+  transform: translate3d(-50%, -25%, 0);
+  width: calc(700 * var(--sg-rem));
   z-index: 1;
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  column-gap: calc(32 * var(--sg-rem));
-  row-gap: calc(40 * var(--sg-rem));
-  list-style: none;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: calc(16 * var(--sg-rem));
+  align-items: start;
   margin: 0;
   padding: 0;
+  transform-origin: 50% 25%;
+  will-change: transform;
+}
+
+.column {
+  position: relative;
+  width: 100%;
+  will-change: transform, opacity;
+}
+
+.columnTrack {
+  display: flex;
+  flex-direction: column;
+  gap: calc(18 * var(--sg-rem));
+  padding-bottom: calc(18 * var(--sg-rem));
   will-change: transform;
 }
 
 .item {
   position: relative;
   width: 100%;
+  will-change: transform;
+}
+
+.polaroid {
+  position: relative;
+  width: 100%;
+  border-radius: clamp(8px, calc(10 * var(--sg-rem)), 12px);
+  background-color: #f7f5ee;
+  padding: clamp(6px, calc(10 * var(--sg-rem)), 11px)
+    clamp(6px, calc(10 * var(--sg-rem)), 11px)
+    clamp(10px, calc(14 * var(--sg-rem)), 15px);
+  box-shadow: 0 14px 32px rgba(26, 38, 21, 0.18);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.imageFrame {
+  position: relative;
+  width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: clamp(8px, calc(12 * var(--sg-rem)), 14px);
+  border-radius: clamp(3px, calc(5 * var(--sg-rem)), 6px);
   background-color: var(--dark-08);
-  box-shadow: 0 12px 28px rgba(26, 38, 21, 0.12);
-  will-change: transform;
 }
 
 .image {
@@ -301,6 +380,32 @@
   height: 100%;
   object-fit: cover;
   background-color: var(--dark-08);
+}
+
+.captionBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: clamp(6px, calc(9 * var(--sg-rem)), 10px);
+  padding: 0 0.2rem;
+}
+
+.categoryLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(0.62rem, calc(11.5 * var(--sg-rem)), 0.76rem);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #2b2a26;
+}
+
+.indexLabel {
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: clamp(0.58rem, calc(10.5 * var(--sg-rem)), 0.7rem);
+  color: #7a7567;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -354,5 +459,9 @@
     width: 100%;
     max-width: 900px;
     margin: 0 auto;
+  }
+
+  .loopClone {
+    display: none;
   }
 }

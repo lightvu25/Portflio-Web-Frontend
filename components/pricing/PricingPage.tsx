@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
+import { BookingSection } from "@/components/booking/BookingPage";
 import { Reveal } from "@/components/shared/Reveal";
 import { gsap, useGSAP } from "@/lib/gsap";
 import { formatVnd, sessionTypeLabel } from "@/lib/labels";
@@ -58,20 +58,27 @@ function packageImage(p: PricingPackage, groupCovers: Map<number, string>, fallb
 }
 
 /**
- * Pricing page — visitor picks a customer group (Cá nhân / 2 người / 3 người)
- * and sees only that group's packages. Packages come from GET /api/pricing,
- * grouped by groupSize; covers resolve via PricingPackage.coverImageUrl.
+ * Combined Services & Booking page (/pricing):
+ *  1. Group selector & Pricing packages
+ *  2. Session times, Benefits, Surcharges
+ *  3. Concise 4-step Booking Process ("Giữ lịch trong 4 bước") with 4 large display numbers
+ *  4. Integrated Booking Form (#booking) right below
  */
 export function PricingPage({
   packages,
   deposit,
   photos = [],
+  turnstileSiteKey,
 }: {
   packages: PricingPackage[];
   deposit: number;
   photos?: Photo[];
+  turnstileSiteKey?: string;
 }) {
   const [group, setGroup] = useState(1);
+  const [selectedPkgId, setSelectedPkgId] = useState<number | undefined>(
+    undefined,
+  );
   const gridRef = useRef<HTMLDivElement>(null);
 
   /** Representative image per group: first package cover in that group. */
@@ -88,6 +95,23 @@ export function PricingPage({
     () => packages.filter((p) => p.groupSize === group),
     [packages, group],
   );
+
+  const handleChoosePackage = (pkg: PricingPackage) => {
+    setSelectedPkgId(pkg.id);
+    setGroup(pkg.groupSize);
+    const el = document.getElementById("booking");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handleBookingSelectPkgId = (id: number) => {
+    setSelectedPkgId(id);
+    const found = packages.find((p) => p.id === id);
+    if (found) {
+      setGroup(found.groupSize);
+    }
+  };
 
   // Smooth staggered GSAP entrance whenever the selected group changes.
   useGSAP(
@@ -120,13 +144,36 @@ export function PricingPage({
     { scope: gridRef, dependencies: [group] },
   );
 
+  const fourSteps = [
+    {
+      num: "01",
+      title: "Chọn gói chụp",
+      detail: "Xem bộ sưu tập và bảng giá, chọn gói chụp hợp gu bạn thích.",
+    },
+    {
+      num: "02",
+      title: "Gửi thông tin",
+      detail: "Chọn ngày chụp ở form bên dưới, web tự soạn sẵn tin nhắn gửi Bấu.",
+    },
+    {
+      num: "03",
+      title: "Cọc giữ lịch",
+      detail: `Bấu xác nhận lịch trống và gửi thông tin cọc ${formatVnd(deposit)} để giữ lịch.`,
+    },
+    {
+      num: "04",
+      title: "Chụp và nhận ảnh",
+      detail: "Trao đổi thống nhất concept trước buổi chụp và nhận ảnh hậu kỳ sau 1 tuần.",
+    },
+  ];
+
   return (
     <main className="flex min-h-screen w-full flex-col bg-dark-03 text-absolutewhite">
       <section className="border-b border-dark-12">
         <div className="mx-auto max-w-[1400px] px-5 py-14 md:px-10 md:py-20">
           <Reveal from="up">
             <p className="font-medium text-sm font-medium uppercase tracking-[0.18em] text-grey-40">
-              Dịch vụ
+              Dịch vụ &amp; Đặt lịch
             </p>
             <h1 className="mt-3 font-semibold text-4xl font-semibold text-absolutewhite md:text-6xl">
               Bảng giá chụp ảnh
@@ -247,12 +294,13 @@ export function PricingPage({
                       {p.description}
                     </p>
                   )}
-                  <Link
-                    href={`/booking?package=${p.id}`}
-                    className="mt-6 block rounded-[10px] bg-brand-55 py-2.5 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2"
+                  <button
+                    type="button"
+                    onClick={() => handleChoosePackage(p)}
+                    className="mt-6 block w-full rounded-[10px] bg-brand-55 py-2.5 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2"
                   >
                     Đặt gói này
-                  </Link>
+                  </button>
                 </div>
               </article>
             );
@@ -301,7 +349,7 @@ export function PricingPage({
         </div>
 
         {/* Surcharges & conditions (separated from package prices) */}
-        <div className="mx-auto max-w-[1400px] px-5 pb-12 md:px-10">
+        <div className="mx-auto max-w-[1400px] px-5 pb-14 md:px-10">
           <h2 className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
             Phụ phí &amp; Lưu ý
           </h2>
@@ -322,85 +370,67 @@ export function PricingPage({
           </div>
         </div>
 
-        {/* Booking process & 1-week delivery deadline */}
+        {/* Redesigned 4-step Booking Process with 4 large display numbers */}
         <div className="mx-auto max-w-[1400px] px-5 pb-16 md:px-10">
-          <h2 className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
-            Quy trình đặt lịch
-          </h2>
-          <ol className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              {
-                title: "Chọn gói & lịch",
-                detail:
-                  "Xem bảng giá theo số người, chọn gói chụp phù hợp rồi chọn ngày và ca chụp ở trang Đặt lịch.",
-              },
-              {
-                title: "Gửi thông tin",
-                detail:
-                  "Điền thông tin trên form đặt lịch, hệ thống tạo mã đặt lịch và giữ chỗ tạm thời.",
-              },
-              {
-                title: "Liên hệ xác nhận",
-                detail:
-                  "Gửi tin nhắn mẫu qua Instagram / Facebook / Zalo để trao đổi concept, địa điểm và phí di chuyển.",
-              },
-              {
-                title: "Đặt cọc giữ lịch",
-                detail: `Đặt cọc ${formatVnd(deposit)} — lịch chụp được xác nhận chính thức sau khi nhận cọc.`,
-              },
-              {
-                title: "Buổi chụp",
-                detail:
-                  "Thực hiện buổi chụp theo concept đã thống nhất và thanh toán phần còn lại sau buổi chụp.",
-              },
-              {
-                title: "Chọn ảnh",
-                detail:
-                  "Nhận full file đã căn chỉnh cơ bản để kiểm tra và chọn các bức ảnh cần hậu kỳ chi tiết.",
-              },
-              {
-                title: "Nhận ảnh hậu kỳ",
-                detail:
-                  "Nhận bộ ảnh đã hậu kỳ chi tiết qua link lưu trữ chất lượng cao (lưu file trong 3 tháng).",
-              },
-            ].map((step, idx) => (
-              <li
-                key={step.title}
-                className="flex flex-col rounded-[14px] bg-dark-08 p-5"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-55/20 font-semibold text-xs font-semibold text-brand-55">
-                    {idx + 1}
-                  </span>
-                  <p className="font-semibold text-sm font-semibold text-absolutewhite">
-                    {step.title}
-                  </p>
-                </div>
-                <p className="mt-2.5 text-sm leading-6 text-grey-70">
-                  {step.detail}
+          <Reveal from="up">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-brand-55">
+                  Quy trình đặt lịch
                 </p>
-              </li>
-            ))}
-          </ol>
-
-          <div className="mt-6 flex flex-col items-start justify-between gap-4 rounded-[14px] border border-brand-55/40 bg-brand-55/10 p-6 sm:flex-row sm:items-center">
-            <div>
-              <p className="font-semibold text-base font-semibold text-absolutewhite">
+                <h2 className="mt-2 font-semibold text-3xl font-semibold text-absolutewhite md:text-4xl">
+                  Giữ lịch trong 4 bước
+                </h2>
+                <p className="mt-1.5 text-sm text-grey-50">
+                  Giữ lịch chụp với Bấu trong 4 bước gọn gàng.
+                </p>
+              </div>
+              <p className="inline-flex items-center gap-2 rounded-full border border-brand-55/30 bg-brand-55/10 px-4 py-2 text-xs font-medium text-absolutewhite">
+                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-brand-55" />
                 Hạn giao ảnh: sau 1 tuần kể từ khi khách chọn ảnh.
               </p>
-              <p className="mt-1 text-sm text-grey-70">
-                File gốc đã căn chỉnh cơ bản sẽ được gửi trước để bạn thoải mái chọn ảnh hậu kỳ.
-              </p>
             </div>
-            <Link
-              href="/booking"
-              className="shrink-0 rounded-[10px] bg-brand-55 px-6 py-3 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2"
-            >
-              Đặt lịch ngay
-            </Link>
-          </div>
+
+            <div className="relative mt-8">
+              {/* Subtle connecting line across the 4 cards on desktop */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute left-8 right-8 top-12 hidden h-[2px] bg-gradient-to-r from-brand-55/25 via-brand-55/45 to-brand-55/25 lg:block"
+              />
+              <ol className="relative grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                {fourSteps.map((step) => (
+                  <li
+                    key={step.num}
+                    className="group relative flex flex-col justify-between overflow-hidden rounded-[16px] border border-dark-12 bg-dark-08 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-brand-55/40 hover:shadow-[0_14px_32px_rgba(107,142,90,0.12)]"
+                  >
+                    <div>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="font-mono text-5xl font-bold leading-none tracking-tight tabular-nums text-brand-55 md:text-6xl">
+                          {step.num}
+                        </span>
+                      </div>
+                      <h3 className="mt-5 font-semibold text-lg font-semibold text-absolutewhite">
+                        {step.title}
+                      </h3>
+                      <p className="mt-2 text-sm leading-6 text-grey-70">
+                        {step.detail}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </Reveal>
         </div>
       </section>
+
+      {/* Integrated Booking Section (#booking) */}
+      <BookingSection
+        packages={packages}
+        turnstileSiteKey={turnstileSiteKey}
+        selectedPackageId={selectedPkgId}
+        onSelectPackageId={handleBookingSelectPkgId}
+      />
     </main>
   );
 }

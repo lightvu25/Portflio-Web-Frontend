@@ -401,7 +401,7 @@ export function ServicesPreviewSection({
 
               <div className="svc-item">
                 <Link
-                  href={`/booking?package=${pkg.id}`}
+                  href={`/pricing?package=${pkg.id}#booking`}
                   draggable={false}
                   className="group mt-4 inline-flex items-center gap-3"
                 >
@@ -457,7 +457,7 @@ export function ServicesPreviewSection({
 
               <div className="svc-item mt-8 flex flex-wrap items-center gap-3">
                 <Link
-                  href={`/booking?package=${pkg.id}`}
+                  href={`/pricing?package=${pkg.id}#booking`}
                   draggable={false}
                   className="inline-flex items-center justify-center rounded-[10px] bg-brand-55 px-6 py-3 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                 >
@@ -475,7 +475,7 @@ export function ServicesPreviewSection({
 
             {imageUrl && (
               <Link
-                href={`/booking?package=${pkg.id}`}
+                href={`/pricing?package=${pkg.id}#booking`}
                 draggable={false}
                 className="svc-media group relative block overflow-hidden rounded-[14px] bg-dark-08"
               >

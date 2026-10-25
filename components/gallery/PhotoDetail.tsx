@@ -107,7 +107,7 @@ export function PhotoDetail({
                   </p>
                 )}
                 <Link
-                  href={`/booking?package=${pkg.id}`}
+                  href={`/pricing?package=${pkg.id}#booking`}
                   className="mt-6 block rounded-[10px] bg-brand-55 py-3 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                 >
                   Đặt gói này
@@ -119,7 +119,7 @@ export function PhotoDetail({
                   Chọn gói chụp phù hợp tại trang bảng giá.
                 </p>
                 <Link
-                  href="/booking"
+                  href="/pricing#booking"
                   className="mt-6 block rounded-[10px] bg-brand-55 py-3 text-center font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.02] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                 >
                   Đặt lịch ngay
