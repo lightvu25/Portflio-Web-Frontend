@@ -7,7 +7,7 @@ import type { Feedback } from "@/types/feedback";
 import type { Photo } from "@/types/photo";
 
 const inputCls =
-  "w-full rounded-[10px] bg-dark-03 px-4 py-3 text-sm text-absolutewhite placeholder:text-grey-40 ring-1 ring-dark-12 focus:outline-none focus:ring-2 focus:ring-brand-55/60";
+  "w-full rounded-[10px] bg-dark-03 px-4 py-3 text-sm text-absolutewhite placeholder:text-grey-40 focus:outline-none focus:ring-2 focus:ring-brand-55/60";
 
 /**
  * Testimonials section on the homepage — displays the auto-scrolling
@@ -83,7 +83,7 @@ export function TestimonialsSection({
       <div className="mx-auto max-w-[600px] px-5 pb-14 md:px-10 md:pb-20">
         <form
           onSubmit={submit}
-          className="rounded-[16px] border border-dark-12 bg-dark-08 p-6 shadow-sm md:p-8"
+          className="rounded-[16px] bg-dark-08 p-6 shadow-sm md:p-8"
         >
           <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
             <h3 className="font-semibold text-xl text-absolutewhite">

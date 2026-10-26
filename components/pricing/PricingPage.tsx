@@ -323,14 +323,26 @@ function PricingPageContent({
    * Close Zoomed View and return to the 3-card Grid View (closeContent in GridZoom-main).
    */
   const handleBackToGrid = useCallback(() => {
-    if (isAnimatingRef.current || zoomedGroup === null) return;
+    if (zoomedGroup === null) return;
+    if (typeof window !== "undefined" && window.location.hash === "#booking") {
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search,
+      );
+    }
+
     const zoomView = zoomViewRef.current;
     const wrap = zoomImageWrapRef.current;
+    const rightCol = zoomRightColRef.current;
+    gsap.killTweensOf([zoomView, wrap, rightCol].filter(Boolean));
+
     const reduceMotion =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     if (!zoomView || !wrap || reduceMotion) {
+      isAnimatingRef.current = false;
       transitionModeRef.current = null;
       setZoomedGroup(null);
       return;
@@ -339,7 +351,7 @@ function PricingPageContent({
     isAnimatingRef.current = true;
     gsap
       .timeline({
-        defaults: { duration: 0.45, ease: "expo.inOut" },
+        defaults: { duration: 0.4, ease: "expo.inOut" },
         onComplete: () => {
           isAnimatingRef.current = false;
           transitionModeRef.current = "close";
@@ -347,30 +359,44 @@ function PricingPageContent({
         },
       })
       .to(wrap, { scale: 0.88, autoAlpha: 0 }, 0)
-      .to(zoomView, { autoAlpha: 0, y: 16, duration: 0.38 }, 0);
+      .to(zoomView, { autoAlpha: 0, y: 16, duration: 0.35 }, 0);
   }, [zoomedGroup]);
 
   // Run GridZoom entrance / changeContent / closeContent animations when zoomedGroup updates
   useGSAP(
     () => {
       if (zoomedGroup === null) {
-        if (transitionModeRef.current !== "close") return;
-        transitionModeRef.current = null;
-        // Returning to 3-card Grid View — animate the 3 group cards back in
+        isAnimatingRef.current = false;
         const gridView = gridViewRef.current;
         if (!gridView) return;
+
+        // Always ensure gridView container and inner image wrappers are completely visible & clean
+        gsap.set(gridView, { clearProps: "all", autoAlpha: 1 });
+        const imgBoxes = [
+          ...Object.values(cellImgRefs.current),
+          ...Object.values(cellInnerRefs.current),
+        ].filter((el): el is HTMLDivElement => Boolean(el));
+        if (imgBoxes.length > 0) {
+          gsap.set(imgBoxes, { clearProps: "all" });
+        }
+
         const cells = gsap.utils.toArray<HTMLElement>(
           "[data-grid-card]",
           gridView,
         );
         if (cells.length === 0) return;
+
+        const mode = transitionModeRef.current;
+        transitionModeRef.current = null;
+
         const reduceMotion = window.matchMedia(
           "(prefers-reduced-motion: reduce)",
         ).matches;
-        if (reduceMotion) {
-          gsap.set(cells, { autoAlpha: 1, scale: 1, clearProps: "all" });
+        if (mode !== "close" || reduceMotion) {
+          gsap.set(cells, { clearProps: "all", autoAlpha: 1, scale: 1 });
           return;
         }
+
         gsap.fromTo(
           cells,
           { autoAlpha: 0, scale: 0.88 },
@@ -380,7 +406,7 @@ function PricingPageContent({
             duration: 0.65,
             stagger: 0.06,
             ease: "expo.out",
-            clearProps: "transform,opacity,visibility",
+            clearProps: "all",
           },
         );
         return;
@@ -671,7 +697,7 @@ function PricingPageContent({
         <div className="mx-auto max-w-[1400px] px-5 py-12 md:px-10 md:py-14">
           {zoomedGroup === null ? (
             /* ---------------- STATE 1: 3-CARD GRID VIEW ---------------- */
-            <div ref={gridViewRef} data-grid-view="groups">
+            <div key="grid-view" ref={gridViewRef} data-grid-view="groups">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <h2 className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
                   Bạn chụp cho bao nhiêu người?
@@ -697,7 +723,7 @@ function PricingPageContent({
                       onClick={() => handleOpenGroup(g.size)}
                       onMouseEnter={() => handleCellMouseEnter(g.size)}
                       onMouseLeave={() => handleCellMouseLeave(g.size)}
-                      className="group relative flex flex-col overflow-hidden rounded-[16px] border border-dark-12 bg-dark-08 text-left transition-shadow duration-300 hover:border-brand-55/40 hover:shadow-[0_18px_40px_rgba(107,142,90,0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
+                      className="group relative flex flex-col overflow-hidden rounded-[16px] bg-dark-08 text-left transition-shadow duration-300 hover:shadow-[0_18px_40px_rgba(107,142,90,0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                     >
                       {/* .grid__cell-img outer frame */}
                       <div
@@ -754,14 +780,14 @@ function PricingPageContent({
             </div>
           ) : (
             /* ---------------- STATE 2: GRIDZOOM OPENED VIEW ---------------- */
-            <div ref={zoomViewRef} data-zoom-view={zoomedGroup} className="space-y-8">
+            <div key="zoom-view" ref={zoomViewRef} data-zoom-view={zoomedGroup} className="space-y-8">
               {/* Top control bar: Back button (GridZoom .back) + Mini Grid switcher (.grid--mini) */}
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-dark-12 pb-5">
+              <div className="flex flex-wrap items-center justify-between gap-4 pb-2">
                 <button
                   type="button"
                   onClick={handleBackToGrid}
                   data-zoom-back
-                  className="back group inline-flex items-center gap-3 rounded-full border border-dark-12 bg-dark-08 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-absolutewhite transition-colors hover:border-brand-55/50 hover:bg-dark-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
+                  className="back group inline-flex items-center gap-3 rounded-full bg-dark-08 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-absolutewhite transition-colors hover:bg-dark-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
                 >
                   <svg
                     viewBox="0 0 50 9"
@@ -798,10 +824,10 @@ function PricingPageContent({
                           data-mini-cell={g.size}
                           onClick={() => handleSwitchGroupInZoom(g.size)}
                           aria-pressed={isCurrent}
-                          className={`group relative flex items-center gap-2 overflow-hidden rounded-[10px] border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                          className={`group relative flex items-center gap-2 overflow-hidden rounded-[10px] px-2.5 py-1.5 text-xs font-medium transition-all ${
                             isCurrent
-                              ? "border-brand-55 bg-brand-55/15 text-absolutewhite shadow-sm"
-                              : "border-dark-12 bg-dark-08 text-grey-50 hover:border-brand-55/40 hover:text-absolutewhite"
+                              ? "bg-brand-55/20 text-absolutewhite shadow-sm"
+                              : "bg-dark-08 text-grey-50 hover:bg-dark-12 hover:text-absolutewhite"
                           }`}
                         >
                           <span className="relative h-6 w-8 shrink-0 overflow-hidden rounded-[5px] bg-dark-12">
@@ -839,7 +865,7 @@ function PricingPageContent({
                   <div
                     ref={zoomImageWrapRef}
                     data-zoom-image
-                    className={`relative overflow-hidden rounded-[18px] border border-dark-12 bg-dark-08 shadow-[0_20px_48px_rgba(0,0,0,0.12)] select-none touch-pan-y ${
+                    className={`relative overflow-hidden rounded-[18px] bg-dark-08 shadow-[0_20px_48px_rgba(0,0,0,0.12)] select-none touch-pan-y ${
                       dragging ? "cursor-grabbing" : "cursor-grab"
                     }`}
                   >
@@ -976,10 +1002,10 @@ function PricingPageContent({
                               data-sub-pkg={p.id}
                               onClick={() => setSelectedPkgId(p.id)}
                               aria-pressed={isSelected}
-                              className={`group relative flex flex-col justify-between rounded-[16px] border p-5 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 ${
+                              className={`group relative flex flex-col justify-between rounded-[16px] p-5 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 ${
                                 isSelected
-                                  ? "border-brand-55 bg-brand-55/15 shadow-[0_12px_28px_rgba(107,142,90,0.12)]"
-                                  : "border-dark-12 bg-dark-08 hover:border-brand-55/40 hover:bg-dark-12"
+                                  ? "bg-brand-55/15 shadow-[0_12px_28px_rgba(107,142,90,0.12)]"
+                                  : "bg-dark-08 hover:bg-dark-12"
                               }`}
                             >
                               <div>
@@ -991,7 +1017,7 @@ function PricingPageContent({
                                     className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition-colors ${
                                       isSelected
                                         ? "bg-brand-55 text-white"
-                                        : "border border-dark-15 bg-dark-06 text-transparent group-hover:border-brand-55/50"
+                                        : "bg-dark-06 text-transparent"
                                     }`}
                                   >
                                     ✓
@@ -1014,7 +1040,7 @@ function PricingPageContent({
                                 )}
                               </div>
 
-                              <div className="mt-5 border-t border-dark-12/80 pt-3">
+                              <div className="mt-5 pt-2">
                                 <span
                                   className={`text-xs font-semibold ${
                                     isSelected
@@ -1137,22 +1163,18 @@ function PricingPageContent({
                   Giữ lịch chụp với Bấu trong 4 bước gọn gàng.
                 </p>
               </div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-brand-55/30 bg-brand-55/10 px-4 py-2 text-xs font-medium text-absolutewhite">
+              <p className="inline-flex items-center gap-2 rounded-full bg-brand-55/10 px-4 py-2 text-xs font-medium text-absolutewhite">
                 <span aria-hidden="true" className="h-2 w-2 rounded-full bg-brand-55" />
                 Hạn giao ảnh: sau 1 tuần kể từ khi khách chọn ảnh.
               </p>
             </div>
 
             <div className="relative mt-8">
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute left-8 right-8 top-12 hidden h-[2px] bg-gradient-to-r from-brand-55/25 via-brand-55/45 to-brand-55/25 lg:block"
-              />
               <ol className="relative grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
                 {fourSteps.map((step) => (
                   <li
                     key={step.num}
-                    className="group relative flex flex-col justify-between overflow-hidden rounded-[16px] border border-dark-12 bg-dark-08 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-brand-55/40 hover:shadow-[0_14px_32px_rgba(107,142,90,0.12)]"
+                    className="group relative flex flex-col justify-between overflow-hidden rounded-[16px] bg-dark-08 p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_14px_32px_rgba(107,142,90,0.12)]"
                   >
                     <div>
                       <div className="flex items-baseline justify-between gap-3">

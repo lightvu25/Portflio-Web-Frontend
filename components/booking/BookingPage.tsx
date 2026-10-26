@@ -312,7 +312,7 @@ function BookingFormInner({
 
       {state === "sent" && createdBooking && selected ? (
         <div className="mt-6 space-y-6 rounded-[14px] bg-dark-08 p-6 md:p-8">
-          <div className="border-b border-dark-12 pb-5">
+          <div className="pb-2">
             <span className="inline-flex items-center rounded-full bg-brand-55/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-brand-55">
               {bookingStatusLabel[createdBooking.status]} · Chưa thanh toán cọc
             </span>
@@ -475,7 +475,7 @@ function BookingFormInner({
                       aria-pressed={pkgId === p.id}
                       className={`rounded-[12px] p-4 text-left transition-colors ${
                         pkgId === p.id
-                          ? "bg-brand-55/15 ring-1 ring-brand-55/40"
+                          ? "bg-brand-55/20"
                           : "bg-dark-08 hover:bg-dark-15"
                       }`}
                     >
@@ -537,7 +537,7 @@ function BookingFormInner({
                           taken
                             ? "cursor-not-allowed bg-dark-08 text-grey-40 line-through"
                             : slot === s
-                              ? "bg-brand-55/15 text-absolutewhite ring-1 ring-brand-55/40"
+                              ? "bg-brand-55/20 font-semibold text-absolutewhite"
                               : "bg-dark-08 text-grey-70 hover:bg-dark-15 hover:text-absolutewhite"
                         }`}
                       >
@@ -679,7 +679,7 @@ function BookingFormInner({
       <div
         id="booking"
         aria-label="Đặt lịch chụp"
-        className="scroll-mt-24 rounded-[16px] border border-dark-12 bg-dark-06 p-6 md:p-8"
+        className="scroll-mt-24 rounded-[16px] bg-dark-06 p-6 md:p-8"
       >
         {formBody}
       </div>
