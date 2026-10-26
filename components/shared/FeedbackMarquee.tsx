@@ -230,20 +230,6 @@ export function FeedbackMarquee({
   const initializedRef = useRef(false);
   const inViewRef = useRef(true);
 
-  // Pause RAF work when the marquee is scrolled out of the viewport.
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport || typeof IntersectionObserver === "undefined") return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        inViewRef.current = entry.isIntersecting;
-      },
-      { rootMargin: "120px 0px" },
-    );
-    obs.observe(viewport);
-    return () => obs.disconnect();
-  }, []);
-
   // Measure one copy; derive repeat count; place the viewport inside the middle copy.
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -280,18 +266,24 @@ export function FeedbackMarquee({
     return pos;
   }, []);
 
-  // Single animation loop.
+  // Single animation loop — completely stops RAF when off-screen or when tab is hidden.
   useEffect(() => {
     if (reducedMotion || columns.length === 0) return;
     let raf = 0;
+    let running = false;
     let last = performance.now();
+
     const tick = (now: number) => {
+      if (!inViewRef.current || document.hidden) {
+        running = false;
+        raf = 0;
+        return;
+      }
       const dt = Math.min(64, now - last);
       last = now;
       const viewport = viewportRef.current;
       const active =
         viewport &&
-        inViewRef.current &&
         copyWidthRef.current > 0 &&
         !pressedRef.current &&
         now >= pausedUntilRef.current;
@@ -305,8 +297,47 @@ export function FeedbackMarquee({
       }
       raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+
+    const startLoop = () => {
+      if (running || !inViewRef.current || document.hidden) return;
+      running = true;
+      last = performance.now();
+      raf = requestAnimationFrame(tick);
+    };
+
+    const stopLoop = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      running = false;
+    };
+
+    const viewport = viewportRef.current;
+    const obs =
+      viewport && typeof IntersectionObserver !== "undefined"
+        ? new IntersectionObserver(
+            ([entry]) => {
+              inViewRef.current = entry.isIntersecting;
+              if (entry.isIntersecting) startLoop();
+              else stopLoop();
+            },
+            { rootMargin: "120px 0px" },
+          )
+        : null;
+    if (viewport && obs) obs.observe(viewport);
+
+    const onVisibilityChange = () => {
+      if (document.hidden) stopLoop();
+      else startLoop();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    startLoop();
+
+    return () => {
+      stopLoop();
+      obs?.disconnect();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [reducedMotion, columns.length, wrap]);
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {

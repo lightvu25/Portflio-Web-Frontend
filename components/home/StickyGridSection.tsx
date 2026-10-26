@@ -187,12 +187,39 @@ export function StickyGridSection({
           );
         });
 
+        // Pause infinite column tweens when scrolled past the hero or when tab is hidden
+        let heroInView = true;
+        const updateAutoScrollState = () => {
+          const shouldPlay = heroInView && !document.hidden;
+          autoScrollTweens.forEach((t) => {
+            if (shouldPlay) t.play();
+            else t.pause();
+          });
+        };
+
+        const visibilityObs =
+          typeof IntersectionObserver !== "undefined"
+            ? new IntersectionObserver(
+                ([entry]) => {
+                  heroInView = entry.isIntersecting;
+                  updateAutoScrollState();
+                },
+                { rootMargin: "160px 0px" },
+              )
+            : null;
+        visibilityObs?.observe(block);
+        document.addEventListener("visibilitychange", updateAutoScrollState);
+
         const counterValues = statTargets.map(() => ({ val: 0 }));
         const counterActive = statTargets.map(() => false);
         const counterTweens: (gsap.core.Tween | null)[] = statTargets.map(() => null);
         statTargets.forEach((_, idx) => setStatText(idx, 0));
 
         const syncStatCounters = () => {
+          const prog = mainTimeline.progress();
+          if (prog < 0.15 || prog > 0.85) {
+            if (!counterActive.some(Boolean)) return;
+          }
           statEls.forEach((el, idx) => {
             const opacity = Number(gsap.getProperty(el, "opacity")) || 0;
             if (opacity > 0.05 && !counterActive[idx]) {
@@ -343,6 +370,8 @@ export function StickyGridSection({
 
         return () => {
           ScrollTrigger.removeEventListener("refreshInit", measureHeader);
+          document.removeEventListener("visibilitychange", updateAutoScrollState);
+          visibilityObs?.disconnect();
           loadTl.kill();
           autoScrollTweens.forEach((t) => t.kill());
           counterTweens.forEach((t) => t?.kill());

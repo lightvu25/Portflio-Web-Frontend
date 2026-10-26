@@ -56,11 +56,15 @@ function BookingFormInner({
   turnstileSiteKey,
   selectedPackageId,
   onSelectPackageId,
+  hidePackageSelector = false,
+  embeddedInZoom = false,
 }: {
   packages: PricingPackage[];
   turnstileSiteKey: string | undefined;
   selectedPackageId?: number;
   onSelectPackageId?: (id: number) => void;
+  hidePackageSelector?: boolean;
+  embeddedInZoom?: boolean;
 }) {
   const params = useSearchParams();
   const queryPkgId = Number(params.get("package"));
@@ -286,6 +290,402 @@ function BookingFormInner({
 
   const holdExpiryText = formatHoldExpiryVi(createdBooking?.expiresAt);
 
+  const formBody = (
+    <>
+      <div className={embeddedInZoom ? "" : ""}>
+        <p className="font-medium text-xs font-medium uppercase tracking-[0.18em] text-brand-55">
+          Đặt lịch
+        </p>
+        <h3
+          className={`mt-2 font-semibold text-absolutewhite ${
+            embeddedInZoom ? "text-2xl md:text-3xl" : "text-3xl md:text-5xl"
+          }`}
+        >
+          Đặt lịch chụp cùng Bấu
+        </h3>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-grey-50">
+          {hidePackageSelector
+            ? "Chọn ngày chụp và điền thông tin bên dưới để hệ thống giữ chỗ tạm thời và tạo sẵn tin nhắn gửi cho Bấu."
+            : "Chọn gói chụp, ngày chụp và điền thông tin bên dưới để hệ thống giữ chỗ tạm thời và tạo sẵn tin nhắn gửi cho Bấu."}
+        </p>
+      </div>
+
+      {state === "sent" && createdBooking && selected ? (
+        <div className="mt-6 space-y-6 rounded-[14px] bg-dark-08 p-6 md:p-8">
+          <div className="border-b border-dark-12 pb-5">
+            <span className="inline-flex items-center rounded-full bg-brand-55/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-brand-55">
+              {bookingStatusLabel[createdBooking.status]} · Chưa thanh toán cọc
+            </span>
+            <h3 className="mt-3 font-semibold text-2xl font-semibold text-absolutewhite">
+              Đã ghi nhận yêu cầu giữ chỗ tạm thời
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-grey-50">
+              Mã đặt lịch của bạn là{" "}
+              <span className="font-mono text-lg font-semibold text-brand-55">
+                {createdBooking.bookingCode}
+              </span>
+              . Lịch chụp hiện ở trạng thái{" "}
+              <strong className="text-absolutewhite">chờ xử lý</strong>{" "}
+              {holdExpiryText
+                ? `(giữ chỗ tạm thời đến ${holdExpiryText})`
+                : "(giữ chỗ tạm thời 30 phút)"}{" "}
+              và sẽ được xác nhận chính thức sau khi bạn trao đổi với Bấu và hoàn tất đặt cọc.
+            </p>
+          </div>
+
+          {/* Summary grid */}
+          <dl className="grid gap-4 rounded-[12px] bg-dark-06 p-5 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
+                Mã đặt lịch
+              </dt>
+              <dd className="mt-1 font-mono font-semibold text-brand-55">
+                {createdBooking.bookingCode}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
+                Gói chụp
+              </dt>
+              <dd className="mt-1 font-medium text-absolutewhite">
+                {selected.name} ({sessionTypeLabel[selected.sessionType]} ·{" "}
+                {selected.groupSize} người · {formatVnd(selected.price)})
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
+                Ngày dự kiến chụp &amp; Buổi
+              </dt>
+              <dd className="mt-1 font-medium text-absolutewhite">
+                {formatShootDateVi(date)} ·{" "}
+                {isFullDay ? "Cả ngày (Sáng + Chiều)" : slotLabel[slot]}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
+                Họ tên bạn &amp; SĐT
+              </dt>
+              <dd className="mt-1 font-medium text-absolutewhite">
+                {createdBooking.customerName || name.trim()} ·{" "}
+                {createdBooking.phone || phone.trim()}
+              </dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
+                Địa chỉ cụ thể
+              </dt>
+              <dd className="mt-1 text-absolutewhite">
+                {createdBooking.address || address.trim()}
+              </dd>
+            </div>
+            {(createdBooking.note || note.trim()) && (
+              <div className="sm:col-span-2">
+                <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
+                  Lưu ý với thợ
+                </dt>
+                <dd className="mt-1 whitespace-pre-wrap text-absolutewhite">
+                  {createdBooking.note || note.trim()}
+                </dd>
+              </div>
+            )}
+          </dl>
+
+          {/* Copyable message + social contact buttons */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <span
+                id="booking-copy-message-label"
+                className="font-medium text-xs font-medium uppercase tracking-[0.12em] text-grey-50"
+              >
+                Tin nhắn tóm tắt để gửi cho Bấu
+              </span>
+              <div className="flex items-center gap-2.5">
+                {copyState === "copied" && (
+                  <span
+                    role="status"
+                    className="text-xs font-semibold text-brand-55"
+                  >
+                    Đã sao chép
+                  </span>
+                )}
+                {copyState === "failed" && (
+                  <span role="alert" className="text-xs text-red-600">
+                    Hãy bôi đen và nhấn Ctrl+C
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCopyMessage}
+                  aria-label="Sao chép tin nhắn"
+                  title="Sao chép tin nhắn"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-brand-55 text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-105 hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
+                >
+                  <CopyIcon size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div
+              role="region"
+              aria-labelledby="booking-copy-message-label"
+              className="w-full select-all whitespace-pre-wrap rounded-[10px] bg-dark-06 p-4 font-mono text-xs leading-6 text-absolutewhite"
+            >
+              {copyMessage}
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <a
+                href={SOCIAL_CONTACT_LINKS.facebook}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Mở Facebook"
+                title="Mở Facebook"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 hover:text-absolutewhite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
+              >
+                <FacebookIcon size={18} />
+              </a>
+              <a
+                href={SOCIAL_CONTACT_LINKS.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Mở Instagram"
+                title="Mở Instagram"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 hover:text-absolutewhite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
+              >
+                <InstagramIcon size={18} />
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <form className={embeddedInZoom ? "mt-6 space-y-5" : "mt-10 space-y-8"} onSubmit={submit}>
+          {/* Package selector — omitted when hidePackageSelector is true */}
+          {!hidePackageSelector && (
+            <fieldset>
+              <legend className={label}>Gói chụp</legend>
+              {packages.length === 0 ? (
+                <p className="text-sm text-grey-40">Đang tải gói chụp…</p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {packages.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleSelectPkg(p.id)}
+                      aria-pressed={pkgId === p.id}
+                      className={`rounded-[12px] p-4 text-left transition-colors ${
+                        pkgId === p.id
+                          ? "bg-brand-55/15 ring-1 ring-brand-55/40"
+                          : "bg-dark-08 hover:bg-dark-15"
+                      }`}
+                    >
+                      <p className="font-semibold text-sm font-semibold text-absolutewhite">
+                        {p.name}
+                      </p>
+                      <p className="mt-1 text-xs text-grey-50">
+                        {sessionTypeLabel[p.sessionType]} · {p.groupSize} người ·{" "}
+                        {formatVnd(p.price)}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </fieldset>
+          )}
+
+          {/* Date + slot */}
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="booking-date" className={label}>
+                Ngày dự kiến chụp
+              </label>
+              <input
+                id="booking-date"
+                type="date"
+                min={new Date().toISOString().slice(0, 10)}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className={input}
+              />
+            </div>
+            <div>
+              <span className={label}>Buổi chụp</span>
+              {isFullDay ? (
+                <p
+                  className={`rounded-[10px] px-4 py-3 text-sm ${
+                    fullDayTaken
+                      ? "bg-red-500/10 text-red-700"
+                      : "bg-dark-08 text-grey-50"
+                  }`}
+                >
+                  {fullDayTaken
+                    ? "Ngày này đã kín lịch cả ngày."
+                    : "Gói cả ngày — bao gồm sáng và chiều."}
+                </p>
+              ) : (
+                <div className="flex gap-3">
+                  {(["MORNING", "AFTERNOON"] as Slot[]).map((s) => {
+                    const taken = date ? slotTaken(s) : false;
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        disabled={taken}
+                        onClick={() => setSlot(s)}
+                        aria-pressed={slot === s}
+                        className={`flex-1 rounded-[10px] py-3 font-medium text-sm transition-colors ${
+                          taken
+                            ? "cursor-not-allowed bg-dark-08 text-grey-40 line-through"
+                            : slot === s
+                              ? "bg-brand-55/15 text-absolutewhite ring-1 ring-brand-55/40"
+                              : "bg-dark-08 text-grey-70 hover:bg-dark-15 hover:text-absolutewhite"
+                        }`}
+                      >
+                        {slotLabel[s]}
+                        {taken ? " (kín)" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Customer info */}
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="customer-name" className={label}>
+                Họ tên bạn
+              </label>
+              <input
+                id="customer-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Nhập họ tên của bạn"
+                className={input}
+              />
+            </div>
+            <div>
+              <label htmlFor="customer-phone" className={label}>
+                Số điện thoại
+              </label>
+              <input
+                id="customer-phone"
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
+                pattern="[0-9]{10}"
+                value={phone}
+                onChange={(e) =>
+                  setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+                }
+                placeholder="Nhập 10 chữ số (09xxxxxxxx)"
+                className={input}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="customer-address" className={label}>
+                Địa chỉ cụ thể
+              </label>
+              <input
+                id="customer-address"
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                aria-describedby="customer-address-hint"
+                placeholder="Ví dụ: Trường THPT Chu Văn An, Phường Thụy Khuê, Hà Nội"
+                className={input}
+              />
+              <p
+                id="customer-address-hint"
+                className="mt-1.5 text-xs text-grey-50"
+              >
+                Vui lòng ghi rõ tên trường / địa điểm chụp, xã/phường, tỉnh/thành phố để Bấu tính lịch trình và ước tính chi phí di chuyển chính xác.
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="customer-instagram" className={label}>
+                Instagram (không bắt buộc)
+              </label>
+              <input
+                id="customer-instagram"
+                type="text"
+                value={instagram}
+                onChange={(e) => setInstagram(e.target.value)}
+                placeholder="@tenban"
+                className={input}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="customer-note" className={label}>
+                Lưu ý với thợ (không bắt buộc)
+              </label>
+              <textarea
+                id="customer-note"
+                rows={3}
+                maxLength={1000}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Ghi chú thêm về concept mong muốn, thời gian tập trung, phụ kiện hoặc chụp thêm máy film..."
+                className={input}
+              />
+            </div>
+          </div>
+
+          {turnstileSiteKey ? (
+            <>
+              <Script
+                src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+                strategy="afterInteractive"
+                onReady={renderTurnstile}
+                onError={() => setCaptchaFailed(true)}
+              />
+              <div ref={turnstileRef} />
+              {captchaFailed && (
+                <p className="text-sm text-red-600">
+                  Không tải được xác nhận bảo mật — vui lòng kiểm tra kết nối và tải lại trang.
+                </p>
+              )}
+            </>
+          ) : (
+            IS_PRODUCTION && (
+              <p role="alert" className="text-sm text-red-600">
+                Xác nhận bảo mật chưa sẵn sàng — vui lòng tải lại trang hoặc thử lại sau.
+              </p>
+            )
+          )}
+
+          {state === "error" && (
+            <p role="alert" className="text-sm text-red-600">
+              {errorMsg}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={state === "sending" || packages.length === 0}
+            className="w-full rounded-[10px] bg-brand-55 py-3.5 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.01] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 disabled:opacity-50"
+          >
+            {state === "sending" ? "Đang gửi…" : "Gửi yêu cầu đặt lịch"}
+          </button>
+        </form>
+      )}
+    </>
+  );
+
+  if (embeddedInZoom) {
+    return (
+      <div
+        id="booking"
+        aria-label="Đặt lịch chụp"
+        className="scroll-mt-24 rounded-[16px] border border-dark-12 bg-dark-06 p-6 md:p-8"
+      >
+        {formBody}
+      </div>
+    );
+  }
+
   return (
     <section
       id="booking"
@@ -293,381 +693,7 @@ function BookingFormInner({
       className="scroll-mt-24 border-t border-dark-12 bg-dark-06"
     >
       <div className="mx-auto max-w-[960px] px-5 py-16 md:px-10 md:py-20">
-        <Reveal from="up">
-          <p className="font-medium text-sm font-medium uppercase tracking-[0.18em] text-grey-40">
-            Đặt lịch
-          </p>
-          <h2 className="mt-3 font-semibold text-3xl font-semibold text-absolutewhite md:text-5xl">
-            Đặt lịch chụp cùng Bấu
-          </h2>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-grey-50">
-            Chọn gói chụp, ngày chụp và điền thông tin bên dưới để hệ thống giữ chỗ tạm thời và tạo sẵn tin nhắn gửi cho Bấu.
-          </p>
-        </Reveal>
-
-        {state === "sent" && createdBooking && selected ? (
-          <Reveal from="up">
-            <div className="mt-10 space-y-6 rounded-[14px] bg-dark-08 p-6 md:p-8">
-              <div className="border-b border-dark-12 pb-5">
-                <span className="inline-flex items-center rounded-full bg-brand-55/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-brand-55">
-                  {bookingStatusLabel[createdBooking.status]} · Chưa thanh toán cọc
-                </span>
-                <h3 className="mt-3 font-semibold text-2xl font-semibold text-absolutewhite">
-                  Đã ghi nhận yêu cầu giữ chỗ tạm thời
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-grey-50">
-                  Mã đặt lịch của bạn là{" "}
-                  <span className="font-mono text-lg font-semibold text-brand-55">
-                    {createdBooking.bookingCode}
-                  </span>
-                  . Lịch chụp hiện ở trạng thái{" "}
-                  <strong className="text-absolutewhite">chờ xử lý</strong>{" "}
-                  {holdExpiryText
-                    ? `(giữ chỗ tạm thời đến ${holdExpiryText})`
-                    : "(giữ chỗ tạm thời 30 phút)"}{" "}
-                  và sẽ được xác nhận chính thức sau khi bạn trao đổi với Bấu và hoàn tất đặt cọc.
-                </p>
-              </div>
-
-              {/* Summary grid */}
-              <dl className="grid gap-4 rounded-[12px] bg-dark-06 p-5 text-sm sm:grid-cols-2">
-                <div>
-                  <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
-                    Mã đặt lịch
-                  </dt>
-                  <dd className="mt-1 font-mono font-semibold text-brand-55">
-                    {createdBooking.bookingCode}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
-                    Gói chụp
-                  </dt>
-                  <dd className="mt-1 font-medium text-absolutewhite">
-                    {selected.name} ({sessionTypeLabel[selected.sessionType]} ·{" "}
-                    {selected.groupSize} người · {formatVnd(selected.price)})
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
-                    Ngày dự kiến chụp &amp; Buổi
-                  </dt>
-                  <dd className="mt-1 font-medium text-absolutewhite">
-                    {formatShootDateVi(date)} ·{" "}
-                    {isFullDay ? "Cả ngày (Sáng + Chiều)" : slotLabel[slot]}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
-                    Họ tên bạn &amp; SĐT
-                  </dt>
-                  <dd className="mt-1 font-medium text-absolutewhite">
-                    {createdBooking.customerName || name.trim()} ·{" "}
-                    {createdBooking.phone || phone.trim()}
-                  </dd>
-                </div>
-                <div className="sm:col-span-2">
-                  <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
-                    Địa chỉ cụ thể
-                  </dt>
-                  <dd className="mt-1 text-absolutewhite">
-                    {createdBooking.address || address.trim()}
-                  </dd>
-                </div>
-                {(createdBooking.note || note.trim()) && (
-                  <div className="sm:col-span-2">
-                    <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
-                      Lưu ý với thợ
-                    </dt>
-                    <dd className="mt-1 whitespace-pre-wrap text-absolutewhite">
-                      {createdBooking.note || note.trim()}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-
-              {/* Copyable message + social contact buttons */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span
-                    id="booking-copy-message-label"
-                    className="font-medium text-xs font-medium uppercase tracking-[0.12em] text-grey-50"
-                  >
-                    Tin nhắn tóm tắt để gửi cho Bấu
-                  </span>
-                  <div className="flex items-center gap-2.5">
-                    {copyState === "copied" && (
-                      <span
-                        role="status"
-                        className="text-xs font-semibold text-brand-55"
-                      >
-                        Đã sao chép
-                      </span>
-                    )}
-                    {copyState === "failed" && (
-                      <span role="alert" className="text-xs text-red-600">
-                        Hãy bôi đen và nhấn Ctrl+C
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleCopyMessage}
-                      aria-label="Sao chép tin nhắn"
-                      title="Sao chép tin nhắn"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-brand-55 text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-105 hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
-                    >
-                      <CopyIcon size={18} />
-                    </button>
-                  </div>
-                </div>
-
-                <div
-                  role="region"
-                  aria-labelledby="booking-copy-message-label"
-                  className="w-full select-all whitespace-pre-wrap rounded-[10px] bg-dark-06 p-4 font-mono text-xs leading-6 text-absolutewhite"
-                >
-                  {copyMessage}
-                </div>
-
-                <div className="flex items-center gap-3 pt-1">
-                  <a
-                    href={SOCIAL_CONTACT_LINKS.facebook}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Mở Facebook"
-                    title="Mở Facebook"
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 hover:text-absolutewhite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
-                  >
-                    <FacebookIcon size={18} />
-                  </a>
-                  <a
-                    href={SOCIAL_CONTACT_LINKS.instagram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Mở Instagram"
-                    title="Mở Instagram"
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 hover:text-absolutewhite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
-                  >
-                    <InstagramIcon size={18} />
-                  </a>
-                </div>
-              </div>
-            </div>
-          </Reveal>
-        ) : (
-          <Reveal from="up">
-            <form className="mt-10 space-y-8" onSubmit={submit}>
-              {/* Package */}
-              <fieldset>
-                <legend className={label}>Gói chụp</legend>
-                {packages.length === 0 ? (
-                  <p className="text-sm text-grey-40">Đang tải gói chụp…</p>
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {packages.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => handleSelectPkg(p.id)}
-                        aria-pressed={pkgId === p.id}
-                        className={`rounded-[12px] p-4 text-left transition-colors ${
-                          pkgId === p.id
-                            ? "bg-brand-55/15 ring-1 ring-brand-55/40"
-                            : "bg-dark-08 hover:bg-dark-15"
-                        }`}
-                      >
-                        <p className="font-semibold text-sm font-semibold text-absolutewhite">
-                          {p.name}
-                        </p>
-                        <p className="mt-1 text-xs text-grey-50">
-                          {sessionTypeLabel[p.sessionType]} · {p.groupSize} người ·{" "}
-                          {formatVnd(p.price)}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </fieldset>
-
-              {/* Date + slot */}
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="booking-date" className={label}>
-                    Ngày dự kiến chụp
-                  </label>
-                  <input
-                    id="booking-date"
-                    type="date"
-                    min={new Date().toISOString().slice(0, 10)}
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className={input}
-                  />
-                </div>
-                <div>
-                  <span className={label}>Buổi chụp</span>
-                  {isFullDay ? (
-                    <p
-                      className={`rounded-[10px] px-4 py-3 text-sm ${
-                        fullDayTaken
-                          ? "bg-red-500/10 text-red-700"
-                          : "bg-dark-08 text-grey-50"
-                      }`}
-                    >
-                      {fullDayTaken
-                        ? "Ngày này đã kín lịch cả ngày."
-                        : "Gói cả ngày — bao gồm sáng và chiều."}
-                    </p>
-                  ) : (
-                    <div className="flex gap-3">
-                      {(["MORNING", "AFTERNOON"] as Slot[]).map((s) => {
-                        const taken = date ? slotTaken(s) : false;
-                        return (
-                          <button
-                            key={s}
-                            type="button"
-                            disabled={taken}
-                            onClick={() => setSlot(s)}
-                            aria-pressed={slot === s}
-                            className={`flex-1 rounded-[10px] py-3 font-medium text-sm transition-colors ${
-                              taken
-                                ? "cursor-not-allowed bg-dark-08 text-grey-40 line-through"
-                                : slot === s
-                                  ? "bg-brand-55/15 text-absolutewhite ring-1 ring-brand-55/40"
-                                  : "bg-dark-08 text-grey-70 hover:bg-dark-15 hover:text-absolutewhite"
-                            }`}
-                          >
-                            {slotLabel[s]}
-                            {taken ? " (kín)" : ""}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Customer info */}
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="customer-name" className={label}>
-                    Họ tên bạn
-                  </label>
-                  <input
-                    id="customer-name"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Nhập họ tên của bạn"
-                    className={input}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="customer-phone" className={label}>
-                    Số điện thoại
-                  </label>
-                  <input
-                    id="customer-phone"
-                    type="tel"
-                    inputMode="numeric"
-                    maxLength={10}
-                    pattern="[0-9]{10}"
-                    value={phone}
-                    onChange={(e) =>
-                      setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
-                    }
-                    placeholder="Nhập 10 chữ số (09xxxxxxxx)"
-                    className={input}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label htmlFor="customer-address" className={label}>
-                    Địa chỉ cụ thể
-                  </label>
-                  <input
-                    id="customer-address"
-                    type="text"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    aria-describedby="customer-address-hint"
-                    placeholder="Ví dụ: Trường THPT Chu Văn An, Phường Thụy Khuê, Hà Nội"
-                    className={input}
-                  />
-                  <p
-                    id="customer-address-hint"
-                    className="mt-1.5 text-xs text-grey-50"
-                  >
-                    Vui lòng ghi rõ tên trường / địa điểm chụp, xã/phường, tỉnh/thành phố để Bấu tính lịch trình và ước tính chi phí di chuyển chính xác.
-                  </p>
-                </div>
-                <div className="sm:col-span-2">
-                  <label htmlFor="customer-instagram" className={label}>
-                    Instagram (không bắt buộc)
-                  </label>
-                  <input
-                    id="customer-instagram"
-                    type="text"
-                    value={instagram}
-                    onChange={(e) => setInstagram(e.target.value)}
-                    placeholder="@tenban"
-                    className={input}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label htmlFor="customer-note" className={label}>
-                    Lưu ý với thợ (không bắt buộc)
-                  </label>
-                  <textarea
-                    id="customer-note"
-                    rows={3}
-                    maxLength={1000}
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="Ghi chú thêm về concept mong muốn, thời gian tập trung, phụ kiện hoặc chụp thêm máy film..."
-                    className={input}
-                  />
-                </div>
-              </div>
-
-              {turnstileSiteKey ? (
-                <>
-                  <Script
-                    src="https://challenges.cloudflare.com/turnstile/v0/api.js"
-                    strategy="afterInteractive"
-                    onReady={renderTurnstile}
-                    onError={() => setCaptchaFailed(true)}
-                  />
-                  <div ref={turnstileRef} />
-                  {captchaFailed && (
-                    <p className="text-sm text-red-600">
-                      Không tải được xác nhận bảo mật — vui lòng kiểm tra kết nối và tải lại trang.
-                    </p>
-                  )}
-                </>
-              ) : (
-                IS_PRODUCTION && (
-                  <p role="alert" className="text-sm text-red-600">
-                    Xác nhận bảo mật chưa sẵn sàng — vui lòng tải lại trang hoặc thử lại sau.
-                  </p>
-                )
-              )}
-
-              {state === "error" && (
-                <p role="alert" className="text-sm text-red-600">
-                  {errorMsg}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={state === "sending" || packages.length === 0}
-                className="w-full rounded-[10px] bg-brand-55 py-3.5 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.01] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 disabled:opacity-50"
-              >
-                {state === "sending" ? "Đang gửi…" : "Gửi yêu cầu đặt lịch"}
-              </button>
-            </form>
-          </Reveal>
-        )}
+        <Reveal from="up">{formBody}</Reveal>
       </div>
     </section>
   );
@@ -678,11 +704,15 @@ export function BookingSection({
   turnstileSiteKey,
   selectedPackageId,
   onSelectPackageId,
+  hidePackageSelector,
+  embeddedInZoom,
 }: {
   packages: PricingPackage[];
   turnstileSiteKey?: string;
   selectedPackageId?: number;
   onSelectPackageId?: (id: number) => void;
+  hidePackageSelector?: boolean;
+  embeddedInZoom?: boolean;
 }) {
   return (
     <Suspense>
@@ -691,6 +721,8 @@ export function BookingSection({
         turnstileSiteKey={turnstileSiteKey}
         selectedPackageId={selectedPackageId}
         onSelectPackageId={onSelectPackageId}
+        hidePackageSelector={hidePackageSelector}
+        embeddedInZoom={embeddedInZoom}
       />
     </Suspense>
   );

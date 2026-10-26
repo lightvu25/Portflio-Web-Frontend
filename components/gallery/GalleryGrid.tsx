@@ -111,6 +111,7 @@ export function GalleryGrid({
                 start: "top bottom",
                 end: "top 65%",
                 scrub: true,
+                fastScrollEnd: true,
                 invalidateOnRefresh: true,
               },
             },
@@ -172,7 +173,7 @@ export function GalleryGrid({
                 data-print
                 data-tilt={tilt}
                 style={{ transform: `rotate(${tilt}deg)` }}
-                className="print relative rounded-[10px] bg-[#F7F5EE] p-2.5 pb-3.5 shadow-[0_14px_32px_rgba(0,0,0,0.45)] ring-1 ring-black/5 transition-shadow duration-300 group-hover:shadow-[0_20px_42px_rgba(107,142,90,0.28)] will-change-transform"
+                className="print relative rounded-[10px] bg-[#F7F5EE] p-2.5 pb-3.5 shadow-[0_14px_32px_rgba(0,0,0,0.45)] ring-1 ring-black/5 transition-shadow duration-300 group-hover:shadow-[0_20px_42px_rgba(107,142,90,0.28)]"
               >
                 <div className={`relative w-full overflow-hidden rounded-[4px] bg-dark-12 ${ratios[i % ratios.length]}`}>
                   <Image
