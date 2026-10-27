@@ -1,6 +1,7 @@
 import { Reveal } from "@/components/shared/Reveal";
 import { DataFetchError } from "@/components/shared/DataFetchError";
 import { GalleryGrid } from "@/components/gallery/GalleryGrid";
+import { isPublicPortfolioCategory, isPublicPortfolioPhoto } from "@/lib/labels";
 import type { Category } from "@/types/category";
 import type { Photo } from "@/types/photo";
 
@@ -15,6 +16,9 @@ export function GalleryPage({
   categories: Category[];
   initialCategory?: string;
 }) {
+  const portfolioPhotos = photos.filter(isPublicPortfolioPhoto);
+  const portfolioCategories = categories.filter(isPublicPortfolioCategory);
+
   return (
     <main className="flex min-h-screen w-full flex-col bg-dark-03 text-absolutewhite">
       <section className="border-b border-dark-12">
@@ -37,7 +41,11 @@ export function GalleryPage({
           {loadError ? (
             <DataFetchError />
           ) : (
-            <GalleryGrid photos={photos} categories={categories} initialCategory={initialCategory} />
+            <GalleryGrid
+              photos={portfolioPhotos}
+              categories={portfolioCategories}
+              initialCategory={initialCategory}
+            />
           )}
         </div>
       </section>

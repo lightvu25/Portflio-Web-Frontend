@@ -64,12 +64,18 @@ export function CropEditor({
   }, []);
 
   const onCropComplete = useCallback((_: Area, pct: Area) => {
-    setResult({
-      cropX: pct.x / 100,
-      cropY: pct.y / 100,
-      cropW: pct.width / 100,
-      cropH: pct.height / 100,
-    });
+    const round4 = (n: number) => Math.round(n * 10000) / 10000;
+    const rawX = Number.isFinite(pct.x) ? pct.x / 100 : 0;
+    const rawY = Number.isFinite(pct.y) ? pct.y / 100 : 0;
+    const rawW = Number.isFinite(pct.width) ? pct.width / 100 : 1;
+    const rawH = Number.isFinite(pct.height) ? pct.height / 100 : 1;
+
+    const cropX = round4(Math.min(0.99, Math.max(0, rawX)));
+    const cropY = round4(Math.min(0.99, Math.max(0, rawY)));
+    const cropW = round4(Math.min(1 - cropX, Math.max(0.01, rawW)));
+    const cropH = round4(Math.min(1 - cropY, Math.max(0.01, rawH)));
+
+    setResult({ cropX, cropY, cropW, cropH });
   }, []);
 
   const options: AspectOption[] = [

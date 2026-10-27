@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useMemo, useRef } from "react";
 import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap";
+import { isPublicPortfolioCategory, isPublicPortfolioPhoto } from "@/lib/labels";
 import type { ResolvedSiteStats } from "@/lib/site-stats";
 import type { Photo } from "@/types/photo";
 import styles from "./StickyGridSection.module.css";
@@ -58,15 +59,17 @@ export function StickyGridSection({
 
   // Ensure 12 Polaroid slots distributed across 3 columns (4 original cards per column).
   const gridColumns = useMemo(() => {
-    if (photos.length === 0) return [];
+    const publicPhotos = photos.filter(isPublicPortfolioPhoto);
+    if (publicPhotos.length === 0) return [];
     const cols: PolaroidSlot[][] = Array.from({ length: NUM_COLUMNS }, () => []);
     for (let i = 0; i < GRID_COUNT; i++) {
-      const photo = photos[i % photos.length];
+      const photo = publicPhotos[i % publicPhotos.length];
+      const portfolioCat = photo.categories?.find(isPublicPortfolioCategory);
       cols[i % NUM_COLUMNS].push({
         slotKey: `${photo.id}-slot-${i}`,
         photo,
         tilt: POLAROID_TILTS[i % POLAROID_TILTS.length],
-        categoryLabel: photo.categories?.[0]?.name ?? "Bấu Chụp Choẹt",
+        categoryLabel: portfolioCat?.name ?? photo.categories?.[0]?.name ?? "Bấu Chụp Choẹt",
         displayIndex: String(i + 1).padStart(2, "0"),
       });
     }
@@ -538,7 +541,8 @@ export function StickyGridSection({
                                     slot.photo.title ??
                                     `Ảnh bộ sưu tập ${slot.displayIndex}`)
                               }
-                              fill
+                              width={1000}
+                              height={1250}
                               quality={100}
                               sizes="(min-width: 1280px) 1000px, (min-width: 768px) 70vw, 100vw"
                               onLoad={slot.isClone ? undefined : handleImageLoad}

@@ -29,10 +29,10 @@
   overflow: hidden;
   background-color: var(--sg-bg);
   background-image: radial-gradient(
-    ellipse 68% 58% at 50% 50%,
-    rgba(107, 142, 90, 0.28) 0%,
-    rgba(163, 190, 149, 0.14) 46%,
-    #ffffff 78%
+    ellipse 48% 42% at 50% 50%,
+    rgba(107, 142, 90, 0.14) 0%,
+    rgba(163, 190, 149, 0.06) 36%,
+    #ffffff 62%
   );
 }
 
@@ -89,16 +89,16 @@
   grid-template-areas: "stage";
   align-items: center;
   justify-items: center;
-  width: min(calc(1360 * var(--sg-rem)), 100%);
-  min-height: clamp(420px, calc(540 * var(--sg-rem)), 580px);
-  padding: clamp(2.75rem, calc(64 * var(--sg-rem)), 4.75rem)
-    clamp(1.5rem, calc(64 * var(--sg-rem)), 5rem);
+  width: min(calc(960 * var(--sg-rem)), 92%);
+  min-height: clamp(320px, calc(430 * var(--sg-rem)), 460px);
+  padding: clamp(2rem, calc(48 * var(--sg-rem)), 3.5rem)
+    clamp(1.25rem, calc(48 * var(--sg-rem)), 3.75rem);
   background: radial-gradient(
     ellipse closest-side at 50% 50%,
-    rgba(78, 107, 64, 0.96) 0%,
-    rgba(107, 142, 90, 0.88) 38%,
-    rgba(126, 159, 109, 0.42) 68%,
-    rgba(255, 255, 255, 0) 100%
+    rgba(78, 107, 64, 0.72) 0%,
+    rgba(107, 142, 90, 0.54) 32%,
+    rgba(126, 159, 109, 0.18) 58%,
+    rgba(255, 255, 255, 0) 84%
   );
   color: #ffffff;
   z-index: 2;
@@ -139,17 +139,17 @@
   background-position: 0 0, 3px 3px, 0 0, 0 0, 0 0;
   -webkit-mask-image: radial-gradient(
     ellipse closest-side at 50% 50%,
-    rgba(0, 0, 0, 0.98) 0%,
-    rgba(0, 0, 0, 0.85) 38%,
-    rgba(0, 0, 0, 0.36) 68%,
-    rgba(0, 0, 0, 0) 100%
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.55) 32%,
+    rgba(0, 0, 0, 0.18) 58%,
+    rgba(0, 0, 0, 0) 84%
   );
   mask-image: radial-gradient(
     ellipse closest-side at 50% 50%,
-    rgba(0, 0, 0, 0.98) 0%,
-    rgba(0, 0, 0, 0.85) 38%,
-    rgba(0, 0, 0, 0.36) 68%,
-    rgba(0, 0, 0, 0) 100%
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.55) 32%,
+    rgba(0, 0, 0, 0.18) 58%,
+    rgba(0, 0, 0, 0) 84%
   );
 }
 
@@ -364,16 +364,15 @@
 .imageFrame {
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
   overflow: hidden;
   border-radius: clamp(3px, calc(5 * var(--sg-rem)), 6px);
   background-color: var(--dark-08);
 }
 
 .image {
+  display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
   background-color: var(--dark-08);
 }
 

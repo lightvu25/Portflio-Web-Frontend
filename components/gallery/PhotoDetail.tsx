@@ -4,7 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { formatVnd, sessionTypeLabel } from "@/lib/labels";
+import {
+  formatVnd,
+  isPublicPortfolioCategory,
+  sessionTypeLabel,
+} from "@/lib/labels";
 import type { Photo } from "@/types/photo";
 import type { PricingPackage } from "@/types/pricing";
 
@@ -27,7 +31,9 @@ export function PhotoDetail({
   pkg: PricingPackage | null;
 }) {
   const router = useRouter();
-  const category = photo.categories[0]?.name;
+  const category = (
+    photo.categories.find(isPublicPortfolioCategory) ?? photo.categories[0]
+  )?.name;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -41,17 +47,18 @@ export function PhotoDetail({
 
   return (
     <section className="flex-1">
-      <div className="mx-auto grid max-w-[1400px] gap-8 px-5 py-10 md:px-10 lg:grid-cols-[3fr_2fr]">
+      <div className="mx-auto grid max-w-[1400px] items-start gap-8 px-5 py-10 md:px-10 lg:grid-cols-[3fr_2fr]">
         {/* Image + navigation */}
-        <div className="relative aspect-[4/3] overflow-hidden rounded-[14px] bg-dark-08 lg:aspect-auto lg:min-h-[70vh]">
+        <div className="relative flex items-center justify-center overflow-hidden rounded-[14px] bg-dark-08">
           <Image
             src={photo.imageUrl}
             alt={photo.altText ?? photo.title ?? "Ảnh"}
-            fill
+            width={1600}
+            height={2000}
             priority
             quality={100}
             sizes="(min-width: 1280px) 1150px, (min-width: 1024px) 85vw, 100vw"
-            className="object-cover"
+            className="mx-auto block h-auto max-h-[82vh] w-full object-contain"
           />
           <Link href={`/gallery/${prevId}`} aria-label="Ảnh trước" className={`${arrowBtn} left-4`}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">

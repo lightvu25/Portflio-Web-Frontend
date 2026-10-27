@@ -5,26 +5,24 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Photo } from "@/types/photo";
 
-const cardWidth =
-  "w-[calc(50vw-32px)] sm:w-[calc(33.33vw-30px)] lg:w-[calc(25vw-38px)] min-[1480px]:w-[332px]";
-
 function PhotoGroup({ photos }: { photos: Photo[] }) {
   return (
-    <div data-group className="flex shrink-0 gap-6 pr-6">
+    <div data-group className="flex shrink-0 items-center gap-6 pr-6">
       {photos.map((p) => (
         <Link
           key={p.id}
           href={`/gallery/${p.id}`}
           aria-label={p.altText ?? p.title ?? "Xem ảnh"}
-          className={`group/img relative block aspect-[4/5] shrink-0 overflow-hidden rounded-[14px] bg-dark-08 transition-[transform,box-shadow] duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/50 ${cardWidth}`}
+          className="group/img relative block h-[260px] w-auto shrink-0 overflow-hidden rounded-[14px] bg-dark-08 transition-[transform,box-shadow] duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/50 sm:h-[320px] lg:h-[380px]"
         >
           <Image
             src={p.imageUrl}
             alt={p.altText ?? p.title ?? "Ảnh"}
-            fill
+            width={1200}
+            height={1600}
             quality={100}
             sizes="(min-width: 1480px) 600px, (min-width: 1024px) 45vw, (min-width: 640px) 60vw, 90vw"
-            className="object-cover"
+            className="block h-full w-auto object-contain"
           />
         </Link>
       ))}

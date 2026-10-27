@@ -15,6 +15,7 @@ import {
   fetchPricing,
   fetchSite,
 } from "@/lib/data";
+import { isPublicPortfolioPhoto } from "@/lib/labels";
 import { resolveSiteStats } from "@/lib/site-stats";
 
 /**
@@ -31,8 +32,10 @@ export async function HomePage() {
   ]);
 
   const list = photos.data;
-  const stickyGrid = list.slice(0, 12);
-  const preview = list.length > 12 ? list.slice(12, 20) : list.slice(0, 8);
+  const portfolioPhotos = list.filter(isPublicPortfolioPhoto);
+  const stickyGrid = portfolioPhotos.slice(0, 12);
+  const preview =
+    portfolioPhotos.length > 12 ? portfolioPhotos.slice(12, 20) : portfolioPhotos.slice(0, 8);
   const stats = resolveSiteStats(site);
   const photographerName = site?.photographerName?.trim() || "Bấu Chụp Choẹt";
 
@@ -52,14 +55,14 @@ export async function HomePage() {
             className="bg-dark-03 px-5 py-16 md:px-10 md:py-24"
             style={{
               backgroundImage:
-                "radial-gradient(ellipse 68% 58% at 50% 50%, rgba(107, 142, 90, 0.28) 0%, rgba(163, 190, 149, 0.14) 46%, #ffffff 78%)",
+                "radial-gradient(ellipse 48% 42% at 50% 50%, rgba(107, 142, 90, 0.14) 0%, rgba(163, 190, 149, 0.06) 36%, #ffffff 62%)",
             }}
           >
             <div
-              className="relative mx-auto max-w-[1160px] p-8 text-center text-white md:p-16"
+              className="relative mx-auto max-w-[960px] p-8 text-center text-white md:p-14"
               style={{
                 backgroundImage:
-                  "repeating-linear-gradient(0deg, rgba(255, 252, 242, 0.05) 0px, rgba(255, 252, 242, 0.05) 1px, transparent 1px, transparent 3px), repeating-linear-gradient(90deg, rgba(24, 38, 18, 0.055) 0px, rgba(24, 38, 18, 0.055) 1px, transparent 1px, transparent 3px), radial-gradient(ellipse closest-side at 50% 50%, rgba(78, 107, 64, 0.96) 0%, rgba(107, 142, 90, 0.88) 38%, rgba(126, 159, 109, 0.42) 68%, rgba(255, 255, 255, 0) 100%)",
+                  "repeating-linear-gradient(0deg, rgba(255, 252, 242, 0.05) 0px, rgba(255, 252, 242, 0.05) 1px, transparent 1px, transparent 3px), repeating-linear-gradient(90deg, rgba(24, 38, 18, 0.055) 0px, rgba(24, 38, 18, 0.055) 1px, transparent 1px, transparent 3px), radial-gradient(ellipse closest-side at 50% 50%, rgba(78, 107, 64, 0.72) 0%, rgba(107, 142, 90, 0.54) 32%, rgba(126, 159, 109, 0.18) 58%, rgba(255, 255, 255, 0) 84%)",
               }}
             >
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/95">
@@ -109,7 +112,7 @@ export async function HomePage() {
         <AboutSection site={site} />
       </Reveal>
       <Reveal from="up">
-        <ServicesPreviewSection packages={pricing} photos={list} />
+        <ServicesPreviewSection packages={pricing} photos={portfolioPhotos} />
       </Reveal>
       {photos.ok && (
         <Reveal from="up">

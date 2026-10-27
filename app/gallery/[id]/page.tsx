@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PhotoDetail } from "@/components/gallery/PhotoDetail";
 import { DataFetchError } from "@/components/shared/DataFetchError";
 import { fetchPhotos, fetchPricing } from "@/lib/data";
+import { isPublicPortfolioPhoto } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +23,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     );
   }
 
-  const index = photos.data.findIndex((p) => String(p.id) === id);
+  const portfolioPhotos = photos.data.filter(isPublicPortfolioPhoto);
+  const index = portfolioPhotos.findIndex((p) => String(p.id) === id);
   if (index === -1) notFound();
 
-  const photo = photos.data[index];
-  const prev = photos.data[(index - 1 + photos.data.length) % photos.data.length];
-  const next = photos.data[(index + 1) % photos.data.length];
+  const photo = portfolioPhotos[index];
+  const prev = portfolioPhotos[(index - 1 + portfolioPhotos.length) % portfolioPhotos.length];
+  const next = portfolioPhotos[(index + 1) % portfolioPhotos.length];
 
   // Pick a related package: smallest solo package for portrait-like shots —
   // the backend has no photo→package link, so show the first active package.

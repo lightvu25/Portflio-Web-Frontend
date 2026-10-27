@@ -14,7 +14,12 @@ import {
   uploadPhoto,
 } from "@/lib/api/photos";
 import { useAdmin } from "@/lib/auth/useAdmin";
-import { categoryLabel, formatDate, isAdminCategory } from "@/lib/labels";
+import {
+  categoryLabel,
+  formatDate,
+  isAdminCategory,
+  isPackageCategory,
+} from "@/lib/labels";
 import type { Category } from "@/types/category";
 import type { Photo, PhotoStatus } from "@/types/photo";
 import { CropEditor, type CropFraction } from "@/components/admin/photos/CropEditor";
@@ -63,10 +68,15 @@ function categoryTypeBadge(c: Category): { label: string; cls: string } {
   if (c.type === "FEEDBACK") {
     return { label: "Cảm nhận", cls: "bg-purple-100 text-purple-700" };
   }
-  if (c.type === "PACKAGE") {
+  if (isPackageCategory(c)) {
     return { label: "Gói chụp", cls: "bg-blue-100 text-blue-700" };
   }
   return { label: "Bộ sưu tập", cls: "bg-[#EBF1E7] text-[#4E6B40]" };
+}
+
+function resolveAdminPreviewUrl(p: Photo): string {
+  const raw = p.thumbnailUrl ?? p.imageUrl;
+  return raw.replace("/w_400,c_fill,", "/w_600,c_limit,");
 }
 
 /**
@@ -1023,7 +1033,11 @@ export function AdminPhotosPage() {
                         />
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
-                        <img src={p.preview} alt={p.title} className="h-full w-full object-cover" />
+                        <img
+                          src={p.preview}
+                          alt={p.title}
+                          className="h-full w-full object-contain"
+                        />
                       )
                     ) : (
                       <div className="flex h-full items-center justify-center text-xs text-gray-400">
@@ -1359,7 +1373,7 @@ export function AdminPhotosPage() {
         ) : (
           <div
             ref={gridRef}
-            className="relative grid grid-cols-2 items-stretch gap-4 md:grid-cols-3 xl:grid-cols-4"
+            className="relative grid grid-cols-2 items-start gap-4 md:grid-cols-3 xl:grid-cols-4"
             onDragOver={onGridDragOver}
             onDrop={(e) => {
               e.preventDefault();
@@ -1378,6 +1392,9 @@ export function AdminPhotosPage() {
             )}
             {visiblePhotos.map((p) => {
               const isSelected = selected.has(p.id);
+              const isPkgPhoto =
+                Boolean(selectedCategoryObj && isPackageCategory(selectedCategoryObj)) ||
+                p.categories.some(isPackageCategory);
               return (
                 <article
                   key={p.id}
@@ -1406,9 +1423,9 @@ export function AdminPhotosPage() {
                   }`}
                 >
                   <div
-                    className={`relative aspect-square overflow-hidden bg-gray-100 ${
-                      !selectMode ? "group" : ""
-                    }`}
+                    className={`relative overflow-hidden bg-gray-100 ${
+                      isPkgPhoto ? "aspect-[16/10]" : ""
+                    } ${!selectMode ? "group" : ""}`}
                     onClick={(e) => {
                       if (justDraggedRef.current) return;
                       if (!selectMode) {
@@ -1426,12 +1443,12 @@ export function AdminPhotosPage() {
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary thumbnail URL */}
                     <img
-                      src={p.thumbnailUrl ?? p.imageUrl}
+                      src={resolveAdminPreviewUrl(p)}
                       alt={p.altText ?? p.title ?? "Ảnh"}
                       loading="lazy"
-                      className={`h-full w-full object-cover transition-transform duration-200 ${
-                        !selectMode ? "group-hover:scale-[1.03]" : ""
-                      }`}
+                      className={`w-full transition-transform duration-200 ${
+                        isPkgPhoto ? "h-full object-cover" : "block h-auto"
+                      } ${!selectMode ? "group-hover:scale-[1.03]" : ""}`}
                     />
                     <div className="pointer-events-none absolute left-2 top-2">
                       <Badge

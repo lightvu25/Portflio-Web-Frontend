@@ -2,13 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap";
+import { isPublicPortfolioCategory, isPublicPortfolioPhoto } from "@/lib/labels";
 import type { Category } from "@/types/category";
 import type { Photo } from "@/types/photo";
-
-/** Vary tile aspect by index since the backend stores no ratio hint. */
-const ratios = ["aspect-[3/4]", "aspect-square", "aspect-[16/10]"];
 
 /** Deterministic subtle Polaroid tilt angles (degrees) indexed by card position. */
 const TILTS = [-2.2, 1.6, -1.3, 2.4, -1.8, 1.2];
@@ -27,10 +25,19 @@ export function GalleryGrid({
   categories: Category[];
   initialCategory?: string;
 }) {
+  const publicCategories = useMemo(
+    () => categories.filter(isPublicPortfolioCategory),
+    [categories],
+  );
+  const publicPhotos = useMemo(
+    () => photos.filter(isPublicPortfolioPhoto),
+    [photos],
+  );
+
   const [active, setActive] = useState<string>(() => {
     if (!initialCategory) return "";
     const wanted = initialCategory.replace(/s$/i, "").toLowerCase();
-    const match = categories.find(
+    const match = publicCategories.find(
       (c) => c.name.toLowerCase() === wanted || c.slug.toLowerCase() === wanted,
     );
     return match ? String(match.id) : "";
@@ -38,13 +45,21 @@ export function GalleryGrid({
 
   const gridRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleImageLoad = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 120);
+  }, []);
 
   const filtered = useMemo(
     () =>
       active === ""
-        ? photos
-        : photos.filter((p) => p.categories.some((c) => String(c.id) === active)),
-    [active, photos],
+        ? publicPhotos
+        : publicPhotos.filter((p) => p.categories.some((c) => String(c.id) === active)),
+    [active, publicPhotos],
   );
 
   // Smoothly animate filtered tiles when switching category tabs (animates .gallery-card).
@@ -132,6 +147,7 @@ export function GalleryGrid({
       });
 
       return () => {
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
         mm.revert();
       };
     },
@@ -141,7 +157,7 @@ export function GalleryGrid({
   return (
     <div ref={gridRef}>
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Lọc theo danh mục">
-        {[{ id: "", name: "Tất cả" }, ...categories.map((c) => ({ id: String(c.id), name: c.name }))].map((c) => (
+        {[{ id: "", name: "Tất cả" }, ...publicCategories.map((c) => ({ id: String(c.id), name: c.name }))].map((c) => (
           <button
             key={c.id}
             type="button"
@@ -161,7 +177,8 @@ export function GalleryGrid({
       <div className="mt-10 columns-1 gap-6 sm:columns-2 md:columns-3 xl:columns-4">
         {filtered.map((p, i) => {
           const tilt = TILTS[i % TILTS.length];
-          const categoryLabel = p.categories[0]?.name ?? "Bấu Chụp Choẹt";
+          const portfolioCat = p.categories.find(isPublicPortfolioCategory);
+          const categoryLabel = portfolioCat?.name ?? p.categories[0]?.name ?? "Bấu Chụp Choẹt";
           return (
             <Link
               key={p.id}
@@ -175,14 +192,16 @@ export function GalleryGrid({
                 style={{ transform: `rotate(${tilt}deg)` }}
                 className="print relative rounded-[10px] bg-[#F7F5EE] p-2.5 pb-3.5 shadow-[0_14px_32px_rgba(0,0,0,0.45)] ring-1 ring-black/5 transition-shadow duration-300 group-hover:shadow-[0_20px_42px_rgba(107,142,90,0.28)]"
               >
-                <div className={`relative w-full overflow-hidden rounded-[4px] bg-dark-12 ${ratios[i % ratios.length]}`}>
+                <div className="relative w-full overflow-hidden rounded-[4px] bg-dark-12">
                   <Image
                     src={p.imageUrl}
                     alt={p.altText ?? categoryLabel}
-                    fill
+                    width={1200}
+                    height={1600}
                     quality={100}
                     sizes="(min-width: 1280px) 1000px, (min-width: 768px) 75vw, 100vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    onLoad={handleImageLoad}
+                    className="block h-auto w-full transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
                 <div className="mt-2.5 flex items-center justify-between gap-2 px-1">
