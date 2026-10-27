@@ -93,38 +93,63 @@
   min-height: clamp(320px, calc(430 * var(--sg-rem)), 460px);
   padding: clamp(2rem, calc(48 * var(--sg-rem)), 3.5rem)
     clamp(1.25rem, calc(48 * var(--sg-rem)), 3.75rem);
-  background: radial-gradient(
-    ellipse closest-side at 50% 50%,
-    rgba(78, 107, 64, 0.72) 0%,
-    rgba(107, 142, 90, 0.54) 32%,
-    rgba(126, 159, 109, 0.18) 58%,
-    rgba(255, 255, 255, 0) 84%
-  );
   color: #ffffff;
   z-index: 2;
 }
 
-/* Soft woven linen / fabric texture masked strictly to the green radial gradient (GPU-friendly pure CSS weave, no CPU feTurbulence) */
-.panel::before {
-  content: "";
+.bubbleStage {
   position: absolute;
-  inset: 0;
+  inset: -14% -10%;
   pointer-events: none;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bubbleSvg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  display: block;
+  filter: blur(12px);
+  transform: translateZ(0);
+}
+
+.bubbleAura {
+  fill: url(#sg-bubble-aura-grad);
+  will-change: opacity;
+}
+
+.bubbleMid {
+  fill: url(#sg-bubble-mid-grad);
+  will-change: opacity;
+}
+
+.bubbleCore {
+  fill: url(#sg-bubble-core-grad);
+  will-change: opacity;
+}
+
+.bubbleFabric {
+  position: absolute;
+  inset: 6% 8%;
+  pointer-events: none;
+  will-change: opacity;
   background-image:
     radial-gradient(rgba(255, 252, 242, 0.08) 0.75px, transparent 0.75px),
     radial-gradient(rgba(22, 36, 16, 0.07) 0.75px, transparent 0.75px),
     repeating-linear-gradient(
       0deg,
-      rgba(255, 252, 242, 0.075) 0px,
-      rgba(255, 252, 242, 0.075) 1px,
+      rgba(255, 252, 242, 0.07) 0px,
+      rgba(255, 252, 242, 0.07) 1px,
       transparent 1px,
       transparent 3px
     ),
     repeating-linear-gradient(
       90deg,
-      rgba(22, 36, 16, 0.08) 0px,
-      rgba(22, 36, 16, 0.08) 1px,
+      rgba(22, 36, 16, 0.075) 0px,
+      rgba(22, 36, 16, 0.075) 1px,
       transparent 1px,
       transparent 3px
     ),
@@ -138,18 +163,16 @@
   background-size: 6px 6px, 6px 6px, 100% 3px, 3px 100%, 7px 7px;
   background-position: 0 0, 3px 3px, 0 0, 0 0, 0 0;
   -webkit-mask-image: radial-gradient(
-    ellipse closest-side at 50% 50%,
-    rgba(0, 0, 0, 0.78) 0%,
-    rgba(0, 0, 0, 0.55) 32%,
-    rgba(0, 0, 0, 0.18) 58%,
-    rgba(0, 0, 0, 0) 84%
+    ellipse 44% 40% at 50% 50%,
+    rgba(0, 0, 0, 0.88) 0%,
+    rgba(0, 0, 0, 0.55) 52%,
+    rgba(0, 0, 0, 0) 86%
   );
   mask-image: radial-gradient(
-    ellipse closest-side at 50% 50%,
-    rgba(0, 0, 0, 0.78) 0%,
-    rgba(0, 0, 0, 0.55) 32%,
-    rgba(0, 0, 0, 0.18) 58%,
-    rgba(0, 0, 0, 0) 84%
+    ellipse 44% 40% at 50% 50%,
+    rgba(0, 0, 0, 0.88) 0%,
+    rgba(0, 0, 0, 0.55) 52%,
+    rgba(0, 0, 0, 0) 86%
   );
 }
 
