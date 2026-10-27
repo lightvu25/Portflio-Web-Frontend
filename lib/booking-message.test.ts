@@ -69,4 +69,24 @@ describe("booking-message helper", () => {
     expect(SOCIAL_CONTACT_LINKS.instagram).toBe("https://www.instagram.com/_bauu.chupchoet_/");
     expect("zalo" in SOCIAL_CONTACT_LINKS).toBe(false);
   });
+
+  it("supports client-only booking summary without backend bookingCode", () => {
+    const msg = buildBookingCopyMessage({
+      status: "PENDING",
+      packageName: "Cá nhân — Gói 1 buổi",
+      sessionType: "HALF_DAY",
+      groupSize: 1,
+      packagePrice: 1200000,
+      shootDate: "2026-11-20",
+      slot: "AFTERNOON",
+      customerName: "Lê Minh C",
+      phone: "0901234567",
+      address: "Hồ Tây, Quận Tây Hồ, Hà Nội",
+    });
+
+    expect(msg).not.toContain("Mã đặt lịch:");
+    expect(msg).toContain("Gói chụp: Cá nhân — Gói 1 buổi (Nửa ngày · 1 người)");
+    expect(msg).toContain("Ngày dự kiến chụp: 20/11/2026");
+    expect(msg).toContain("Buổi chụp: Buổi chiều");
+  });
 });

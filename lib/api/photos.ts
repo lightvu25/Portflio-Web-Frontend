@@ -42,6 +42,8 @@ export function uploadPhoto(
     categoryIds?: number[];
     /** Optional crop (0..1 fractions of the stored image). */
     crop?: { cropX: number; cropY: number; cropW: number; cropH: number };
+    /** Optional AbortSignal to cancel an in-flight upload on unmount. */
+    signal?: AbortSignal;
   } = {},
 ): Promise<Photo> {
   const formData = new FormData();
@@ -58,7 +60,12 @@ export function uploadPhoto(
     formData.append("cropH", String(metadata.crop.cropH));
   }
 
-  return apiFetch<Photo>("/api/admin/photos", { method: "POST", formData, token });
+  return apiFetch<Photo>("/api/admin/photos", {
+    method: "POST",
+    formData,
+    token,
+    signal: metadata.signal,
+  });
 }
 
 /** Atomic bulk add/remove of categories across the selected photos. */

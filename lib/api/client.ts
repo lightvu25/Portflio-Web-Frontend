@@ -39,6 +39,8 @@ interface ApiFetchOptions {
    * requests, 5min for multipart uploads (large RAW/JPEG batches).
    */
   timeoutMs?: number;
+  /** Optional caller AbortSignal (e.g. when an admin upload batch is cancelled on unmount). */
+  signal?: AbortSignal;
 }
 
 /**
@@ -47,11 +49,17 @@ interface ApiFetchOptions {
  * data must always be fresh.
  */
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
-  const { method = "GET", body, formData, token, timeoutMs } = options;
+  const { method = "GET", body, formData, token, timeoutMs, signal } = options;
 
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (body !== undefined && !formData) headers["Content-Type"] = "application/json";
+
+  const timeoutSignal = AbortSignal.timeout(timeoutMs ?? (formData ? 300_000 : 15_000));
+  const combinedSignal =
+    signal && typeof AbortSignal.any === "function"
+      ? AbortSignal.any([signal, timeoutSignal])
+      : (signal ?? timeoutSignal);
 
   const response = await fetch(`${BASE_URL}${path}`, {
     method,
@@ -60,7 +68,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     cache: "no-store",
     // Without a timeout a hung-but-accepting backend blocks forever: public
     // pages never render, admin pages spin forever.
-    signal: AbortSignal.timeout(timeoutMs ?? (formData ? 300_000 : 15_000)),
+    signal: combinedSignal,
   });
 
   if (!response.ok) {
@@ -86,6 +94,7 @@ export function describeApiError(err: unknown): string {
       403: "Bạn không có quyền thực hiện thao tác này",
       409: "Xung đột dữ liệu hoặc lịch chụp đã được đặt",
       413: "Ảnh hoặc tổng dung lượng tải lên vượt quá giới hạn",
+      429: "Hệ thống đang xử lý ảnh khác — vui lòng đợi giây lát rồi thử lại",
       502: "Không thể tải ảnh lên bộ nhớ ảnh",
       503: "Không thể tải ảnh lên bộ nhớ ảnh",
     };

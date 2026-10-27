@@ -7,7 +7,7 @@ import {
 import type { BookingStatus, SessionType, Slot } from "../types/booking";
 
 export interface BookingMessageInput {
-  bookingCode: string;
+  bookingCode?: string | null;
   status: BookingStatus;
   expiresAt?: string | null;
   packageName: string;
@@ -54,7 +54,7 @@ export function formatHoldExpiryVi(expiresAt?: string | null): string | null {
  * Never includes Turnstile tokens, internal IDs, or unconfirmed payment claims.
  */
 export function buildBookingCopyMessage(input: BookingMessageInput): string {
-  const code = input.bookingCode.trim() || "Đang cấp mã";
+  const code = input.bookingCode?.trim();
   const statusText =
     input.status === "PENDING"
       ? `${bookingStatusLabel[input.status]} (chưa xác nhận / chưa thanh toán cọc)`
@@ -69,9 +69,12 @@ export function buildBookingCopyMessage(input: BookingMessageInput): string {
 
   const lines: string[] = [
     "Xin chào Bấu Chụp Choẹt, mình vừa tạo yêu cầu đặt lịch trên website:",
-    `- Mã đặt lịch: ${code}`,
-    `- Trạng thái: ${statusText}`,
   ];
+
+  if (code) {
+    lines.push(`- Mã đặt lịch: ${code}`);
+  }
+  lines.push(`- Trạng thái: ${statusText}`);
 
   const expiryText = formatHoldExpiryVi(input.expiresAt);
   if (expiryText && input.status === "PENDING") {

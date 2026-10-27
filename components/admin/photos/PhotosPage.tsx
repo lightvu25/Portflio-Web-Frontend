@@ -24,8 +24,14 @@ import type { Category } from "@/types/category";
 import type { Photo, PhotoStatus } from "@/types/photo";
 import { CropEditor, type CropFraction } from "@/components/admin/photos/CropEditor";
 import { Badge, Btn, Card, inputCls, labelCls, Modal, Spinner } from "@/components/admin/ui";
-
-type UploadState = "pending" | "uploading" | "done" | "error";
+import {
+  formatUploadProgressText,
+  MAX_RETRIES_PER_FILE,
+  runSequentialUploadBatch,
+  runSingleRetry,
+  type QueueUploadItem,
+  type UploadState,
+} from "@/lib/upload-queue";
 
 /**
  * Category filter view:
@@ -37,19 +43,7 @@ type CategoryView = number | "UNCATEGORIZED" | "ALL";
 
 type StatusFilter = "ALL" | PhotoStatus;
 
-interface PendingFile {
-  key: string;
-  file: File;
-  /** Small canvas-generated blob URL — null until ready or when undecodable. */
-  preview: string | null;
-  title: string;
-  sortOrder: number;
-  categoryIds: number[];
-  /** Optional crop (0..1 fractions) applied by the backend after upload. */
-  crop: CropFraction | null;
-  state: UploadState;
-  error?: string;
-}
+type PendingFile = QueueUploadItem<CropFraction>;
 
 const uploadStateText: Record<UploadState, string> = {
   pending: "Chờ tải lên",
@@ -87,23 +81,28 @@ function resolveAdminPreviewUrl(p: Photo): string {
  */
 async function makePreviewUrl(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
+  let canvas: HTMLCanvasElement | null = null;
   try {
     const scale = Math.min(1, PREVIEW_EDGE / Math.max(bitmap.width, bitmap.height));
     const w = Math.max(1, Math.round(bitmap.width * scale));
     const h = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement("canvas");
+    canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("canvas unsupported");
     ctx.drawImage(bitmap, 0, 0, w, h);
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", 0.85),
+      canvas!.toBlob(resolve, "image/jpeg", 0.85),
     );
     if (!blob) throw new Error("preview encode failed");
     return URL.createObjectURL(blob);
   } finally {
     bitmap.close();
+    if (canvas) {
+      canvas.width = 0;
+      canvas.height = 0;
+    }
   }
 }
 
@@ -143,8 +142,18 @@ export function AdminPhotosPage() {
   const gridRef = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const uploadSectionRef = useRef<HTMLDivElement>(null);
-  // Mirror of `pending` for unmount cleanup.
+  // Mirror of `pending` for synchronous queue reads & unmount cleanup.
   const pendingRef = useRef<PendingFile[]>([]);
+  /** Monotonic counter for unique pending file keys. */
+  const fileKeySeqRef = useRef(0);
+  /** Synchronous lock enforcing concurrency = 1 across batch & single retry. */
+  const uploadLockRef = useRef(false);
+  /** Cancels any in-flight upload if the component unmounts. */
+  const uploadAbortRef = useRef<AbortController | null>(null);
+  /** Chained promise ensuring local preview bitmaps decode strictly one at a time. */
+  const previewChainRef = useRef<Promise<void>>(Promise.resolve());
+  const unmountedRef = useRef(false);
+
   useEffect(() => {
     pendingRef.current = pending;
   }, [pending]);
@@ -173,13 +182,17 @@ export function AdminPhotosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, token]);
 
-  // Revoke all object URLs when the page unmounts.
-  useEffect(
-    () => () => {
+  // Abort any in-flight upload and revoke all preview object URLs when unmounting.
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+      uploadAbortRef.current?.abort();
+      uploadAbortRef.current = null;
+      uploadLockRef.current = false;
       pendingRef.current.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
-    },
-    [],
-  );
+    };
+  }, []);
 
   const selectedCategoryObj = useMemo(
     () =>
@@ -221,42 +234,75 @@ export function AdminPhotosPage() {
   };
 
   // ---------- Upload flow ----------
+  const patchPending = (key: string, patch: Partial<PendingFile>) => {
+    setPending((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
+  };
+
+  const syncPatchPending = (key: string, patch: Partial<PendingFile>) => {
+    if (unmountedRef.current) return;
+    const next = pendingRef.current.map((p) => (p.key === key ? { ...p, ...patch } : p));
+    pendingRef.current = next;
+    setPending(next);
+  };
+
   const pickFiles = (files: FileList | null) => {
     if (!files?.length) return;
     const defaultCategoryIds = typeof activeCategory === "number" ? [activeCategory] : [];
-    const items: PendingFile[] = Array.from(files).map((file, i) => ({
-      key: `${file.name}-${Date.now()}-${i}`,
-      file,
-      preview: null,
-      title: file.name.replace(/\.[^.]+$/, ""),
-      sortOrder: photos.length + pending.length + i + 1,
-      categoryIds: defaultCategoryIds,
-      crop: null,
-      state: file.type.startsWith("image/") ? "pending" : "error",
-      error: file.type.startsWith("image/")
-        ? undefined
-        : "Định dạng không được hỗ trợ — chỉ nhận JPEG/PNG/WebP/AVIF.",
-    }));
-    setPending((prev) => [...prev, ...items]);
+    const baseSortOrder = photos.length + pendingRef.current.length;
+    const batchSeq = ++fileKeySeqRef.current;
+    const items: PendingFile[] = Array.from(files).map((file, i) => {
+      const supported = file.type.startsWith("image/");
+      return {
+        key: `${file.name}-${batchSeq}-${i}`,
+        file,
+        preview: null,
+        title: file.name.replace(/\.[^.]+$/, ""),
+        sortOrder: baseSortOrder + i + 1,
+        categoryIds: defaultCategoryIds,
+        crop: null,
+        state: supported ? "pending" : "error",
+        retryCount: 0,
+        unrecoverableFormatError: !supported,
+        error: supported
+          ? undefined
+          : "Định dạng không được hỗ trợ — chỉ nhận JPEG/PNG/WebP/AVIF.",
+      };
+    });
+    const nextPending = [...pendingRef.current, ...items];
+    pendingRef.current = nextPending;
+    setPending(nextPending);
     queueMicrotask(() => {
       uploadSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
-    // Generate previews sequentially so big files decode one at a time.
-    for (const item of items) {
-      if (item.state === "error") continue;
-      makePreviewUrl(item.file)
-        .then((preview) => patchPending(item.key, { preview }))
-        .catch(() =>
-          patchPending(item.key, {
+    // Decode preview bitmaps strictly one file at a time so a 56-photo batch
+    // never decodes 56 full-resolution bitmaps concurrently in browser RAM.
+    previewChainRef.current = previewChainRef.current.then(async () => {
+      for (const item of items) {
+        if (unmountedRef.current) return;
+        if (item.unrecoverableFormatError) continue;
+        // Skip if the user removed this item while it was waiting for preview.
+        if (!pendingRef.current.some((p) => p.key === item.key)) continue;
+        try {
+          const preview = await makePreviewUrl(item.file);
+          if (unmountedRef.current) {
+            URL.revokeObjectURL(preview);
+            return;
+          }
+          if (!pendingRef.current.some((p) => p.key === item.key)) {
+            URL.revokeObjectURL(preview);
+            continue;
+          }
+          syncPatchPending(item.key, { preview });
+        } catch {
+          syncPatchPending(item.key, {
             state: "error",
+            unrecoverableFormatError: true,
             error: "Không đọc được định dạng ảnh này (HEIC/RAW?) — hãy xuất sang JPEG/PNG.",
-          }),
-        );
-    }
+          });
+        }
+      }
+    });
   };
-
-  const patchPending = (key: string, patch: Partial<PendingFile>) =>
-    setPending((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
 
   /**
    * Reserved-Admin exclusivity in the UI (the backend also enforces it):
@@ -296,74 +342,112 @@ export function AdminPhotosPage() {
   };
 
   const removePending = (key: string) => {
-    setPending((prev) => {
-      const item = prev.find((p) => p.key === key);
-      if (item?.preview) URL.revokeObjectURL(item.preview);
-      return prev.filter((p) => p.key !== key);
-    });
+    const item = pendingRef.current.find((p) => p.key === key);
+    if (item?.preview) URL.revokeObjectURL(item.preview);
+    const next = pendingRef.current.filter((p) => p.key !== key);
+    pendingRef.current = next;
+    setPending(next);
   };
 
-  const uploadOne = async (item: PendingFile): Promise<boolean> => {
-    if (!token) return false;
-    patchPending(item.key, { state: "uploading", error: undefined });
-    try {
-      await uploadPhoto(token, item.file, {
-        title: item.title,
-        sortOrder: item.sortOrder,
-        categoryIds: item.categoryIds,
-        crop: item.crop ?? undefined,
-      });
-      patchPending(item.key, { state: "done" });
-      return true;
-    } catch (err) {
-      patchPending(item.key, { state: "error", error: describeApiError(err) });
-      onApiError(err);
-      return false;
-    }
-  };
-
-  /** Sequential upload — one large file at a time keeps the UI responsive. */
+  /**
+   * Sequential upload with strict concurrency = 1.
+   * Never creates all upload Promises upfront; sends the original `item.file`
+   * one by one and continues remaining items even if one fails.
+   */
   const uploadAll = async () => {
-    if (!token || uploading) return;
+    if (!token || uploading || uploadLockRef.current) return;
+    uploadLockRef.current = true;
     setUploading(true);
     setNotice(null);
-    let successCount = 0;
-    let failCount = 0;
-    for (const item of pending) {
-      if (item.state === "done") continue;
-      const ok = await uploadOne(item);
-      if (ok) successCount++;
-      else failCount++;
-    }
-    setUploading(false);
-    // Remove finished cards (revoking their preview URLs) once per batch.
-    setPending((prev) => {
-      prev.forEach((p) => p.state === "done" && p.preview && URL.revokeObjectURL(p.preview));
-      return prev.filter((p) => p.state !== "done");
-    });
-    if (successCount > 0) {
-      const targetName = selectedCategoryObj
-        ? `danh mục "${categoryLabel(selectedCategoryObj)}"`
-        : "thư viện";
-      setNotice({
-        ok: failCount === 0,
-        text:
-          failCount === 0
-            ? `Đã tải lên thành công ${successCount} ảnh vào ${targetName}.`
-            : `Đã tải lên ${successCount} ảnh, ${failCount} ảnh lỗi — vui lòng kiểm tra lại.`,
+
+    const abortController = new AbortController();
+    uploadAbortRef.current = abortController;
+
+    try {
+      const { successCount, failCount, aborted } = await runSequentialUploadBatch({
+        getItems: () => pendingRef.current,
+        onItemPatch: syncPatchPending,
+        performUpload: (item, signal) =>
+          uploadPhoto(token, item.file, {
+            title: item.title,
+            sortOrder: item.sortOrder,
+            categoryIds: item.categoryIds,
+            crop: item.crop ?? undefined,
+            signal,
+          }),
+        formatError: describeApiError,
+        onAuthError: onApiError,
+        signal: abortController.signal,
       });
+
+      if (aborted || unmountedRef.current) return;
+
+      // Remove finished cards (revoking their preview URLs) once per batch while keeping failed items for retry.
+      pendingRef.current.forEach((p) => p.state === "done" && p.preview && URL.revokeObjectURL(p.preview));
+      const remaining = pendingRef.current.filter((p) => p.state !== "done");
+      pendingRef.current = remaining;
+      setPending(remaining);
+
+      if (successCount > 0 || failCount > 0) {
+        const targetName = selectedCategoryObj
+          ? `danh mục "${categoryLabel(selectedCategoryObj)}"`
+          : "thư viện";
+        setNotice({
+          ok: failCount === 0,
+          text:
+            failCount === 0
+              ? `Đã tải lên thành công ${successCount} ảnh vào ${targetName}.`
+              : `Đã tải lên ${successCount} ảnh, ${failCount} ảnh lỗi — bạn có thể bấm "Thử lại" trên từng ảnh lỗi.`,
+        });
+      }
+      if (successCount > 0 && token) await load(token);
+    } finally {
+      uploadAbortRef.current = null;
+      uploadLockRef.current = false;
+      if (!unmountedRef.current) {
+        setUploading(false);
+      }
     }
-    if (token) await load(token);
   };
 
   const retryOne = async (key: string) => {
-    const item = pending.find((p) => p.key === key);
-    if (item && item.state === "error") {
-      const ok = await uploadOne(item);
-      if (ok && token) {
+    if (!token || uploading || uploadLockRef.current) return;
+    const item = pendingRef.current.find((p) => p.key === key);
+    if (!item || item.state !== "error") return;
+
+    uploadLockRef.current = true;
+    setUploading(true);
+    const abortController = new AbortController();
+    uploadAbortRef.current = abortController;
+
+    try {
+      const res = await runSingleRetry({
+        item,
+        onItemPatch: syncPatchPending,
+        performUpload: (target, signal) =>
+          uploadPhoto(token, target.file, {
+            title: target.title,
+            sortOrder: target.sortOrder,
+            categoryIds: target.categoryIds,
+            crop: target.crop ?? undefined,
+            signal,
+          }),
+        formatError: describeApiError,
+        onAuthError: onApiError,
+        signal: abortController.signal,
+      });
+
+      if (unmountedRef.current) return;
+      if (res.ok && token) {
         removePending(key);
         setNotice({ ok: true, text: `Đã tải lên ảnh "${item.title}".` });
         await load(token);
+      }
+    } finally {
+      uploadAbortRef.current = null;
+      uploadLockRef.current = false;
+      if (!unmountedRef.current) {
+        setUploading(false);
       }
     }
   };
@@ -1004,11 +1088,7 @@ export function AdminPhotosPage() {
             </div>
 
             <p className="mt-4 text-sm text-gray-500">
-              Đã tải lên {pending.filter((p) => p.state === "done").length} / {pending.length} ảnh
-              {pending.some((p) => p.state === "error") &&
-                ` · ${pending.filter((p) => p.state === "error").length} lỗi`}
-              {pending.find((p) => p.state === "uploading") &&
-                ` · Đang tải: ${pending.find((p) => p.state === "uploading")!.file.name}`}
+              {formatUploadProgressText(pending)}
             </p>
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {pending.map((p) => (
@@ -1122,13 +1202,18 @@ export function AdminPhotosPage() {
                       </span>
                     </div>
                     {p.error && <p className="break-words text-xs text-red-500">{p.error}</p>}
-                    {p.state === "error" && (
+                    {p.state === "error" && !p.unrecoverableFormatError && (
                       <button
                         type="button"
+                        disabled={uploading || p.retryCount >= MAX_RETRIES_PER_FILE}
                         onClick={() => retryOne(p.key)}
-                        className="text-xs font-semibold text-[#6B8E5A] hover:underline"
+                        className="text-xs font-semibold text-[#6B8E5A] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        Thử lại
+                        {p.retryCount >= MAX_RETRIES_PER_FILE
+                          ? `Đã thử lại tối đa (${MAX_RETRIES_PER_FILE}/${MAX_RETRIES_PER_FILE})`
+                          : p.retryCount > 0
+                            ? `Thử lại (${p.retryCount}/${MAX_RETRIES_PER_FILE})`
+                            : "Thử lại"}
                       </button>
                     )}
                   </div>

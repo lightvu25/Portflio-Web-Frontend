@@ -238,7 +238,6 @@ export function CameraIntro() {
     <div
       aria-hidden="true"
       data-camera-intro="active"
-      suppressHydrationWarning
       className="bau-cam-intro-overlay"
       onAnimationEnd={(e) => {
         if (e.target instanceof HTMLElement && e.target.classList.contains("bau-cam-blade-top")) {

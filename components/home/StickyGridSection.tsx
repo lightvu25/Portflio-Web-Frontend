@@ -2,177 +2,25 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap";
-import { isPublicPortfolioCategory, isPublicPortfolioPhoto } from "@/lib/labels";
+import { isPublicPortfolioPhoto } from "@/lib/labels";
 import type { ResolvedSiteStats } from "@/lib/site-stats";
 import type { Photo } from "@/types/photo";
 import styles from "./StickyGridSection.module.css";
 
 const GRID_COUNT = 12;
 const NUM_COLUMNS = 3;
-const BUBBLE_VERTEX_COUNT = 16;
-const BUBBLE_CENTER_X = 500;
-const BUBBLE_CENTER_Y = 350;
-const BUBBLE_BASE_RX = 345;
-const BUBBLE_BASE_RY = 225;
 
 /** Deterministic subtle Polaroid tilt angles (degrees) matching /gallery. */
 const POLAROID_TILTS = [
   -1.8, 1.5, -1.3, 1.9, -1.5, 1.7, -1.6, 1.4, -1.9, 1.3, -1.4, 1.6,
 ];
 
-interface BubblePoint {
-  x: number;
-  y: number;
-}
-
-/**
- * Converts a closed ring of points into a smooth C1-continuous cubic Bézier SVG path
- * using Catmull-Rom spline tangents. Allows concave inward dents ("nảy sâu vào")
- * and convex outward stretches ("giãn ra") without sharp corners.
- */
-function buildClosedBubblePath(
-  points: BubblePoint[],
-  tension = 0.35,
-  precision = 1,
-): string {
-  const n = points.length;
-  if (n < 3) return "";
-  const fmt = (v: number) => v.toFixed(precision);
-  let d = `M ${fmt(points[0].x)} ${fmt(points[0].y)}`;
-  for (let i = 0; i < n; i++) {
-    const p0 = points[(i - 1 + n) % n];
-    const p1 = points[i];
-    const p2 = points[(i + 1) % n];
-    const p3 = points[(i + 2) % n];
-
-    const cp1x = p1.x + ((p2.x - p0.x) * tension) / 2;
-    const cp1y = p1.y + ((p2.y - p0.y) * tension) / 2;
-    const cp2x = p2.x - ((p3.x - p1.x) * tension) / 2;
-    const cp2y = p2.y - ((p3.y - p1.y) * tension) / 2;
-
-    d += ` C ${fmt(cp1x)} ${fmt(cp1y)}, ${fmt(cp2x)} ${fmt(cp2y)}, ${fmt(p2.x)} ${fmt(p2.y)}`;
-  }
-  return `${d} Z`;
-}
-
-/** Shortest signed angular distance in [-π, π]. */
-function angleDiff(a: number, b: number): number {
-  let diff = (a - b) % (Math.PI * 2);
-  if (diff > Math.PI) diff -= Math.PI * 2;
-  if (diff < -Math.PI) diff += Math.PI * 2;
-  return diff;
-}
-
-/**
- * Computes the 16-vertex organic bubble contour at time `t` (seconds).
- * Combines smooth multi-lobe harmonics with well-separated traveling inward dents
- * so 2–3 edges bounce deeply inward ("nảy sâu vào") while neighboring edges
- * stretch outward ("giãn ra") like a real soap bubble in air currents.
- */
-function computeBubblePaths(t: number): {
-  corePath: string;
-  midPath: string;
-  auraPath: string;
-  coreOpacity: number;
-  midOpacity: number;
-  auraOpacity: number;
-} {
-  const corePts: BubblePoint[] = [];
-  const midPts: BubblePoint[] = [];
-  const auraPts: BubblePoint[] = [];
-
-  // Two well-separated primary inward dents (~150°-210° apart so they never pinch a sharp spike)
-  const dent1Angle = t * 0.56 + 0.65;
-  const dent2Angle = dent1Angle + Math.PI + 0.48 * Math.sin(t * 0.72);
-  const dentAngles = [dent1Angle, dent2Angle];
-  const dentDepths = [
-    0.22 * (0.62 + 0.38 * Math.sin(t * 1.85 + 0.3)),
-    0.2 * (0.62 + 0.38 * Math.cos(t * 1.55 + 1.6)),
-  ];
-
-  // Subtle center drift so the bubble floats organically as it deforms
-  const driftX = 9 * Math.sin(t * 0.75) + 5 * Math.cos(t * 1.22);
-  const driftY = 7 * Math.cos(t * 0.68) + 4 * Math.sin(t * 1.12);
-
-  for (let i = 0; i < BUBBLE_VERTEX_COUNT; i++) {
-    const theta = (i / BUBBLE_VERTEX_COUNT) * Math.PI * 2;
-
-    // Smooth low-order spherical/liquid modes (m = 2, 3, 4) for rounded stretches ("giãn ra")
-    const stretchModes =
-      0.085 * Math.sin(theta * 2 + t * 1.32) +
-      0.075 * Math.cos(theta * 3 - t * 1.65 + 0.7) +
-      0.048 * Math.sin(theta * 4 + t * 2.05 + 1.4);
-
-    // Broad, rounded inward indentations ("nảy sâu vào") with flanking volume compensation
-    let indentDelta = 0;
-    for (let m = 0; m < dentAngles.length; m++) {
-      const dTheta = angleDiff(theta, dentAngles[m]);
-      const distSq = dTheta * dTheta;
-      const wavelet = (1 - distSq / 0.36) * Math.exp(-distSq / 0.5);
-      indentDelta += -dentDepths[m] * wavelet;
-    }
-
-    const coreScale = Math.max(0.7, Math.min(1.18, 0.92 + stretchModes + indentDelta));
-    const midScale = Math.max(
-      0.76,
-      Math.min(1.24, 1.01 + stretchModes * 0.92 + indentDelta * 0.85),
-    );
-    const auraScale = Math.max(
-      0.82,
-      Math.min(1.3, 1.1 + stretchModes * 0.82 + indentDelta * 0.72),
-    );
-
-    corePts.push({
-      x: BUBBLE_CENTER_X + driftX + Math.cos(theta) * BUBBLE_BASE_RX * coreScale,
-      y: BUBBLE_CENTER_Y + driftY + Math.sin(theta) * BUBBLE_BASE_RY * coreScale,
-    });
-    midPts.push({
-      x: BUBBLE_CENTER_X + driftX * 0.9 + Math.cos(theta) * BUBBLE_BASE_RX * midScale,
-      y: BUBBLE_CENTER_Y + driftY * 0.9 + Math.sin(theta) * BUBBLE_BASE_RY * midScale,
-    });
-    auraPts.push({
-      x: BUBBLE_CENTER_X + driftX * 0.75 + Math.cos(theta) * BUBBLE_BASE_RX * auraScale,
-      y: BUBBLE_CENTER_Y + driftY * 0.75 + Math.sin(theta) * BUBBLE_BASE_RY * auraScale,
-    });
-  }
-
-  // Smooth breathing opacity fade ("nhấp nháy opacity kiểu fade")
-  const fadeWave =
-    0.5 + 0.35 * Math.sin(t * 1.85) + 0.15 * Math.cos(t * 3.1 + 0.8);
-  const midWave =
-    0.5 + 0.35 * Math.sin(t * 1.85 - 0.45) + 0.15 * Math.cos(t * 2.8 + 1.2);
-  const auraWave =
-    0.5 + 0.36 * Math.sin(t * 1.85 - 0.95) + 0.14 * Math.sin(t * 2.55 + 1.6);
-
-  const coreOpacity = Number(
-    (0.46 + Math.max(0, Math.min(1, fadeWave)) * 0.46).toFixed(3),
-  );
-  const midOpacity = Number(
-    (0.38 + Math.max(0, Math.min(1, midWave)) * 0.46).toFixed(3),
-  );
-  const auraOpacity = Number(
-    (0.28 + Math.max(0, Math.min(1, auraWave)) * 0.52).toFixed(3),
-  );
-
-  return {
-    corePath: buildClosedBubblePath(corePts, 0.35, 1),
-    midPath: buildClosedBubblePath(midPts, 0.36, 1),
-    auraPath: buildClosedBubblePath(auraPts, 0.36, 1),
-    coreOpacity,
-    midOpacity,
-    auraOpacity,
-  };
-}
-
-const INITIAL_BUBBLE = computeBubblePaths(1.2);
-
 interface PolaroidSlot {
   slotKey: string;
   photo: Photo;
   tilt: number;
-  categoryLabel: string;
   displayIndex: string;
 }
 
@@ -215,12 +63,10 @@ export function StickyGridSection({
     const cols: PolaroidSlot[][] = Array.from({ length: NUM_COLUMNS }, () => []);
     for (let i = 0; i < GRID_COUNT; i++) {
       const photo = publicPhotos[i % publicPhotos.length];
-      const portfolioCat = photo.categories?.find(isPublicPortfolioCategory);
       cols[i % NUM_COLUMNS].push({
         slotKey: `${photo.id}-slot-${i}`,
         photo,
         tilt: POLAROID_TILTS[i % POLAROID_TILTS.length],
-        categoryLabel: portfolioCat?.name ?? photo.categories?.[0]?.name ?? "Bấu Chụp Choẹt",
         displayIndex: String(i + 1).padStart(2, "0"),
       });
     }
@@ -234,58 +80,6 @@ export function StickyGridSection({
       ScrollTrigger.refresh();
     }, 120);
   }, []);
-
-  // Continuous organic bubble edge deformation ("nảy sâu vào / giãn ra") + breathing opacity fade
-  useEffect(() => {
-    const block = blockRef.current;
-    const panel = panelRef.current;
-    if (!block || !panel) return;
-    const bubbleCoreEl = panel.querySelector<SVGPathElement>("[data-bubble-core]");
-    const bubbleMidEl = panel.querySelector<SVGPathElement>("[data-bubble-mid]");
-    const bubbleAuraEl = panel.querySelector<SVGPathElement>("[data-bubble-aura]");
-    const bubbleFabricEl = panel.querySelector<HTMLElement>("[data-bubble-fabric]");
-    if (!bubbleCoreEl || !bubbleAuraEl) return;
-
-    let inView = true;
-    let rafId = 0;
-    const startMs = performance.now();
-
-    const step = (nowMs: number) => {
-      if (inView && !document.hidden) {
-        const elapsedSec = (nowMs - startMs) / 1000 + 1.2;
-        const { corePath, midPath, auraPath, coreOpacity, midOpacity, auraOpacity } =
-          computeBubblePaths(elapsedSec);
-        bubbleCoreEl.setAttribute("d", corePath);
-        bubbleCoreEl.style.opacity = String(coreOpacity);
-        if (bubbleMidEl) {
-          bubbleMidEl.setAttribute("d", midPath);
-          bubbleMidEl.style.opacity = String(midOpacity);
-        }
-        bubbleAuraEl.setAttribute("d", auraPath);
-        bubbleAuraEl.style.opacity = String(auraOpacity);
-        if (bubbleFabricEl) bubbleFabricEl.style.opacity = String(coreOpacity);
-      }
-      rafId = window.requestAnimationFrame(step);
-    };
-
-    rafId = window.requestAnimationFrame(step);
-
-    const obs =
-      typeof IntersectionObserver !== "undefined"
-        ? new IntersectionObserver(
-            ([entry]) => {
-              inView = entry.isIntersecting;
-            },
-            { rootMargin: "160px 0px" },
-          )
-        : null;
-    obs?.observe(block);
-
-    return () => {
-      window.cancelAnimationFrame(rafId);
-      obs?.disconnect();
-    };
-  }, [gridColumns.length]);
 
   useGSAP(
     () => {
@@ -632,59 +426,6 @@ export function StickyGridSection({
       <div ref={wrapperRef} className={styles.wrapper}>
         <div className={styles.content}>
           <div ref={panelRef} data-hero-panel className={styles.panel}>
-            {/* Organic morphing bauble/bubble green backdrop with inward dents, outward stretches & fade pulse */}
-            <div aria-hidden="true" className={styles.bubbleStage}>
-              <svg
-                viewBox="0 0 1000 700"
-                preserveAspectRatio="none"
-                className={styles.bubbleSvg}
-              >
-                <defs>
-                  <radialGradient id="sg-bubble-aura-grad" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="rgb(96, 130, 78)" stopOpacity="0.46" />
-                    <stop offset="58%" stopColor="rgb(126, 159, 109)" stopOpacity="0.24" />
-                    <stop offset="86%" stopColor="rgb(148, 179, 132)" stopOpacity="0.1" />
-                    <stop offset="100%" stopColor="rgb(163, 190, 149)" stopOpacity="0.02" />
-                  </radialGradient>
-                  <radialGradient id="sg-bubble-mid-grad" cx="49%" cy="48%" r="50%">
-                    <stop offset="0%" stopColor="rgb(84, 116, 68)" stopOpacity="0.64" />
-                    <stop offset="56%" stopColor="rgb(107, 142, 90)" stopOpacity="0.46" />
-                    <stop offset="86%" stopColor="rgb(134, 166, 118)" stopOpacity="0.24" />
-                    <stop offset="100%" stopColor="rgb(154, 184, 138)" stopOpacity="0.06" />
-                  </radialGradient>
-                  <radialGradient id="sg-bubble-core-grad" cx="48%" cy="46%" r="50%">
-                    <stop offset="0%" stopColor="rgb(72, 102, 58)" stopOpacity="0.82" />
-                    <stop offset="54%" stopColor="rgb(100, 136, 83)" stopOpacity="0.62" />
-                    <stop offset="85%" stopColor="rgb(124, 157, 107)" stopOpacity="0.36" />
-                    <stop offset="100%" stopColor="rgb(148, 179, 132)" stopOpacity="0.12" />
-                  </radialGradient>
-                </defs>
-                <path
-                  data-bubble-aura
-                  d={INITIAL_BUBBLE.auraPath}
-                  style={{ opacity: INITIAL_BUBBLE.auraOpacity }}
-                  className={styles.bubbleAura}
-                />
-                <path
-                  data-bubble-mid
-                  d={INITIAL_BUBBLE.midPath}
-                  style={{ opacity: INITIAL_BUBBLE.midOpacity }}
-                  className={styles.bubbleMid}
-                />
-                <path
-                  data-bubble-core
-                  d={INITIAL_BUBBLE.corePath}
-                  style={{ opacity: INITIAL_BUBBLE.coreOpacity }}
-                  className={styles.bubbleCore}
-                />
-              </svg>
-              <div
-                data-bubble-fabric
-                style={{ opacity: INITIAL_BUBBLE.coreOpacity }}
-                className={styles.bubbleFabric}
-              />
-            </div>
-
             {/* Stage 1: Greeting + H1 (visible immediately at scrollY=0) */}
             <div ref={greetingRef} data-stage="greeting" className={styles.greeting}>
               <span data-greeting-item className={styles.eyebrow}>
@@ -804,14 +545,6 @@ export function StickyGridSection({
                               onLoad={slot.isClone ? undefined : handleImageLoad}
                               className={styles.image}
                             />
-                          </div>
-                          <div className={styles.captionBar}>
-                            <span className={styles.categoryLabel}>
-                              {slot.categoryLabel}
-                            </span>
-                            <span className={styles.indexLabel}>
-                              #{slot.displayIndex}
-                            </span>
                           </div>
                         </div>
                       </div>
