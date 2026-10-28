@@ -13,18 +13,33 @@ import {
   fetchFeedbackPhotos,
   fetchPhotos,
   fetchPricing,
+  fetchScrollPhotos,
   fetchSite,
 } from "@/lib/data";
-import { isPublicPortfolioPhoto } from "@/lib/labels";
+import { isPublicPortfolioPhoto, isScrollPhoto } from "@/lib/labels";
 import { resolveSiteStats } from "@/lib/site-stats";
+import type { Photo } from "@/types/photo";
+
+function mergeScrollPhotos(dedicatedScroll: Photo[], fromGalleryList: Photo[]): Photo[] {
+  const seen = new Set<number>();
+  const result: Photo[] = [];
+  for (const p of [...dedicatedScroll, ...fromGalleryList]) {
+    if (!seen.has(p.id)) {
+      seen.add(p.id);
+      result.push(p);
+    }
+  }
+  return result.sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+}
 
 /**
  * Homepage composition — CameraIntro → scroll-driven StickyGridSection hero →
  * about → services → portfolio → testimonials → CTA.
  */
 export async function HomePage() {
-  const [photos, pricing, feedback, feedbackPhotos, site] = await Promise.all([
+  const [photos, scrollPhotos, pricing, feedback, feedbackPhotos, site] = await Promise.all([
     fetchPhotos(),
+    fetchScrollPhotos(),
     fetchPricing(),
     fetchFeedback(),
     fetchFeedbackPhotos(),
@@ -33,16 +48,16 @@ export async function HomePage() {
 
   const list = photos.data;
   const portfolioPhotos = list.filter(isPublicPortfolioPhoto);
-  const stickyGrid = portfolioPhotos.slice(0, 12);
-  const preview =
-    portfolioPhotos.length > 12 ? portfolioPhotos.slice(12, 20) : portfolioPhotos.slice(0, 8);
+  // StickyGridSection exclusively displays photos assigned to the "Scroll" category.
+  const stickyGrid = mergeScrollPhotos(scrollPhotos, list.filter(isScrollPhoto));
+  const preview = portfolioPhotos.slice(0, 8);
   const stats = resolveSiteStats(site);
   const photographerName = site?.photographerName?.trim() || "Bấu Chụp Choẹt";
 
   return (
     <main className="flex min-h-screen w-full flex-col bg-dark-03 text-absolutewhite">
       <CameraIntro />
-      {photos.ok && stickyGrid.length > 0 ? (
+      {stickyGrid.length > 0 ? (
         <StickyGridSection
           photos={stickyGrid}
           photographerName={photographerName}

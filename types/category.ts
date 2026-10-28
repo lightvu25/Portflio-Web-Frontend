@@ -3,8 +3,13 @@
  * gallery/dto/CategoryRequest.java.
  */
 
-/** PORTFOLIO = public gallery; PACKAGE = pricing cover images; FEEDBACK = customer feedback screenshots (marquee only). */
-export type CategoryType = "PORTFOLIO" | "PACKAGE" | "FEEDBACK";
+/**
+ * PORTFOLIO = public gallery;
+ * PACKAGE = pricing cover images;
+ * FEEDBACK = customer feedback screenshots (marquee only);
+ * SCROLL = homepage scroll-driven hero photos only.
+ */
+export type CategoryType = "PORTFOLIO" | "PACKAGE" | "FEEDBACK" | "SCROLL";
 
 export interface Category {
   id: number;

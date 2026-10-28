@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createCategory, deleteCategory, getAdminCategories, updateCategory } from "@/lib/api/categories";
 import { useAdmin } from "@/lib/auth/useAdmin";
-import { isAdminCategory } from "@/lib/labels";
+import { isAdminCategory, isScrollCategory } from "@/lib/labels";
 import type { Category, CategoryType } from "@/types/category";
 import { Btn, Card, EmptyState, inputCls, labelCls, Modal, Spinner } from "@/components/admin/ui";
 
@@ -52,7 +52,7 @@ export function AdminCategoriesPage() {
     setName(c.name);
     setSlug(c.slug);
     setSortOrder(c.sortOrder);
-    setType(c.type);
+    setType(isScrollCategory(c) ? "SCROLL" : c.type);
     setModalOpen(true);
   };
 
@@ -108,32 +108,52 @@ export function AdminCategoriesPage() {
               </tr>
             </thead>
             <tbody>
-              {[...items].sort((a, b) => a.sortOrder - b.sortOrder).map((c) => (
-                <tr key={c.id} className="border-b border-gray-50 last:border-0">
-                  <td className="py-3 pr-4 font-medium text-gray-800">{c.name}</td>
-                  <td className="py-3 pr-4">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${c.type === "PACKAGE" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                      {isAdminCategory(c) ? "Hệ thống" : c.type === "FEEDBACK" ? "Feedback" : c.type === "PACKAGE" ? "Gói dịch vụ" : "Portfolio"}
-                    </span>
-                  </td>
-                  <td className="py-3 pr-4 text-gray-500">{c.slug}</td>
-                  <td className="py-3 pr-4 text-gray-500">{c.sortOrder}</td>
-                  <td className="py-3">
-                    <div className="flex gap-2">
-                      <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => openEdit(c)}>Sửa</Btn>
-                      <Btn
-                        variant="danger"
-                        className="px-2.5 py-1 text-xs"
-                        onClick={() => remove(c)}
-                        disabled={isAdminCategory(c) || c.type === "FEEDBACK"}
-                        title={isAdminCategory(c) || c.type === "FEEDBACK" ? "Danh mục hệ thống — không thể xoá" : undefined}
+              {[...items].sort((a, b) => a.sortOrder - b.sortOrder).map((c) => {
+                const isSystemProtected =
+                  isAdminCategory(c) || c.type === "FEEDBACK" || isScrollCategory(c);
+                return (
+                  <tr key={c.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3 pr-4 font-medium text-gray-800">{c.name}</td>
+                    <td className="py-3 pr-4">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          isScrollCategory(c)
+                            ? "bg-teal-100 text-teal-800"
+                            : c.type === "PACKAGE"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-100 text-gray-500"
+                        }`}
                       >
-                        Xóa
-                      </Btn>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {isAdminCategory(c)
+                          ? "Hệ thống"
+                          : c.type === "FEEDBACK"
+                            ? "Feedback"
+                            : isScrollCategory(c)
+                              ? "Scroll trang chủ"
+                              : c.type === "PACKAGE"
+                                ? "Gói dịch vụ"
+                                : "Portfolio"}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-4 text-gray-500">{c.slug}</td>
+                    <td className="py-3 pr-4 text-gray-500">{c.sortOrder}</td>
+                    <td className="py-3">
+                      <div className="flex gap-2">
+                        <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => openEdit(c)}>Sửa</Btn>
+                        <Btn
+                          variant="danger"
+                          className="px-2.5 py-1 text-xs"
+                          onClick={() => remove(c)}
+                          disabled={isSystemProtected}
+                          title={isSystemProtected ? "Danh mục hệ thống — không thể xoá" : undefined}
+                        >
+                          Xóa
+                        </Btn>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -159,15 +179,24 @@ export function AdminCategoriesPage() {
               className={inputCls}
               value={type}
               onChange={(e) => setType(e.target.value as CategoryType)}
-              disabled={editing != null && (isAdminCategory(editing) || editing.type === "FEEDBACK")}
+              disabled={
+                editing != null &&
+                (isAdminCategory(editing) || editing.type === "FEEDBACK" || isScrollCategory(editing))
+              }
             >
               <option value="PORTFOLIO">Portfolio (hiển thị công khai)</option>
               <option value="PACKAGE">Gói dịch vụ (ảnh gói — không hiện gallery)</option>
               <option value="FEEDBACK">Feedback (ảnh cảm nhận — chỉ hiện ở mục Cảm nhận)</option>
+              <option value="SCROLL">Scroll (ảnh cuộn trang chủ — chỉ hiện ở Hero trang chủ)</option>
             </select>
             {editing != null && editing.type === "FEEDBACK" && (
               <p className="mt-1.5 text-[11px] text-amber-600">
                 Danh mục Feedback là danh mục hệ thống — ảnh trong danh mục này chỉ hiển thị ở mục Cảm nhận, không hiện trong Gallery.
+              </p>
+            )}
+            {editing != null && isScrollCategory(editing) && (
+              <p className="mt-1.5 text-[11px] text-teal-700">
+                Danh mục Scroll là danh mục hệ thống — ảnh trong danh mục này chỉ hiển thị ở mục Scroll-Driven trên trang chủ, không hiện trong Gallery.
               </p>
             )}
             {editing != null && isAdminCategory(editing) && (

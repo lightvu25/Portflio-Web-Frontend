@@ -19,6 +19,7 @@ import {
   formatDate,
   isAdminCategory,
   isPackageCategory,
+  isScrollCategory,
 } from "@/lib/labels";
 import type { Category } from "@/types/category";
 import type { Photo, PhotoStatus } from "@/types/photo";
@@ -47,7 +48,8 @@ type PendingFile = QueueUploadItem<CropFraction>;
 
 const uploadStateText: Record<UploadState, string> = {
   pending: "Chờ tải lên",
-  uploading: "Đang tải lên…",
+  uploading: "Đang tải lên Cloudinary…",
+  saving: "Đang lưu thông tin…",
   done: "Đã tải lên",
   error: "Lỗi tải lên",
 };
@@ -61,6 +63,9 @@ function categoryTypeBadge(c: Category): { label: string; cls: string } {
   }
   if (c.type === "FEEDBACK") {
     return { label: "Cảm nhận", cls: "bg-purple-100 text-purple-700" };
+  }
+  if (isScrollCategory(c)) {
+    return { label: "Scroll trang chủ", cls: "bg-teal-100 text-teal-800" };
   }
   if (isPackageCategory(c)) {
     return { label: "Gói chụp", cls: "bg-blue-100 text-blue-700" };
@@ -373,6 +378,12 @@ export function AdminPhotosPage() {
             sortOrder: item.sortOrder,
             categoryIds: item.categoryIds,
             crop: item.crop ?? undefined,
+            uploadedAsset: item.uploadedAsset,
+            onUploadedToCloudinary: (asset) =>
+              syncPatchPending(item.key, {
+                uploadedAsset: asset,
+                state: "saving",
+              }),
             signal,
           }),
         formatError: describeApiError,
@@ -430,6 +441,12 @@ export function AdminPhotosPage() {
             sortOrder: target.sortOrder,
             categoryIds: target.categoryIds,
             crop: target.crop ?? undefined,
+            uploadedAsset: target.uploadedAsset,
+            onUploadedToCloudinary: (asset) =>
+              syncPatchPending(target.key, {
+                uploadedAsset: asset,
+                state: "saving",
+              }),
             signal,
           }),
         formatError: describeApiError,
@@ -1195,12 +1212,19 @@ export function AdminPhotosPage() {
                             ? "text-green-600"
                             : p.state === "error"
                               ? "text-red-600"
-                              : "text-gray-400"
+                              : p.state === "saving" || p.state === "uploading"
+                                ? "text-[#6B8E5A]"
+                                : "text-gray-400"
                         }`}
                       >
                         {uploadStateText[p.state]}
                       </span>
                     </div>
+                    {p.uploadedAsset && p.state === "error" && (
+                      <p className="text-[11px] font-medium text-amber-700">
+                        File đã lên Cloudinary — bấm &ldquo;Thử lại&rdquo; để lưu thông tin mà không cần tải lại file.
+                      </p>
+                    )}
                     {p.error && <p className="break-words text-xs text-red-500">{p.error}</p>}
                     {p.state === "error" && !p.unrecoverableFormatError && (
                       <button

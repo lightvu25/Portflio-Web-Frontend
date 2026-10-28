@@ -7,7 +7,7 @@
 import { getCategories } from "@/lib/api/categories";
 import { describeApiError } from "@/lib/api/client";
 import { getFeedback } from "@/lib/api/feedback";
-import { getFeaturedPhotos, getFeedbackPhotos, getGallery } from "@/lib/api/photos";
+import { getFeaturedPhotos, getFeedbackPhotos, getGallery, getScrollPhotos } from "@/lib/api/photos";
 import { getPricing } from "@/lib/api/pricing";
 import { getSiteSettings } from "@/lib/api/site";
 import type { Category } from "@/types/category";
@@ -48,6 +48,7 @@ export const fetchPhotos = (): Promise<DataResult<Photo[]>> =>
   attempt("GET /api/gallery", getGallery(), []);
 export const fetchFeaturedPhotos = (): Promise<Photo[]> => safe("GET /api/gallery/featured", getFeaturedPhotos(), []);
 export const fetchFeedbackPhotos = (): Promise<Photo[]> => safe("GET /api/gallery/feedback", getFeedbackPhotos(), []);
+export const fetchScrollPhotos = (): Promise<Photo[]> => safe("GET /api/gallery/scroll", getScrollPhotos(), []);
 export const fetchCategories = (): Promise<Category[]> => safe("GET /api/categories", getCategories(), []);
 export const fetchPricing = (): Promise<PricingPackage[]> => safe("GET /api/pricing", getPricing(), []);
 export const fetchFeedback = (): Promise<Feedback[]> => safe("GET /api/feedback", getFeedback(), []);

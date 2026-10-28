@@ -15,7 +15,39 @@ import type { PhotoStatus } from "@/types/photo";
  */
 export const ADMIN_CATEGORY_SLUG = "admin-noi-bo";
 
+/**
+ * Slug of the reserved Scroll category (seeded by backend migration V18).
+ * Photos in this category are shown exclusively in the homepage scroll-driven
+ * hero section and excluded from the public gallery.
+ */
+export const SCROLL_CATEGORY_SLUG = "scroll";
+
 export const isAdminCategory = (c: Category) => c.slug === ADMIN_CATEGORY_SLUG;
+
+/**
+ * True when a category is the dedicated Homepage Scroll-Driven category
+ * (`type === "SCROLL"` or slug/name `"scroll"`).
+ */
+export function isScrollCategory(c: Category): boolean {
+  if (isAdminCategory(c) || c.type === "FEEDBACK") return false;
+  if (c.type === "SCROLL") return true;
+  const slug = (c.slug ?? "").trim().toLowerCase();
+  const name = (c.name ?? "").trim().toLowerCase();
+  return (
+    slug === SCROLL_CATEGORY_SLUG ||
+    slug.startsWith("scroll-") ||
+    name === "scroll" ||
+    name.startsWith("scroll ")
+  );
+}
+
+/**
+ * True when a photo belongs to the Homepage Scroll-Driven category.
+ */
+export function isScrollPhoto(p: { categories?: Category[] }): boolean {
+  const cats = p.categories ?? [];
+  return cats.some(isScrollCategory);
+}
 
 /**
  * True when a category represents a service package ("Gói dịch vụ") — either
@@ -23,7 +55,7 @@ export const isAdminCategory = (c: Category) => c.slug === ADMIN_CATEGORY_SLUG;
  * `goi-...`, `package...`) for categories created with the default type.
  */
 export function isPackageCategory(c: Category): boolean {
-  if (isAdminCategory(c) || c.type === "FEEDBACK") return false;
+  if (isAdminCategory(c) || c.type === "FEEDBACK" || isScrollCategory(c)) return false;
   if (c.type === "PACKAGE") return true;
   const slug = (c.slug ?? "").trim().toLowerCase();
   const name = (c.name ?? "").trim().toLowerCase();
@@ -39,21 +71,30 @@ export function isPackageCategory(c: Category): boolean {
 }
 
 /**
- * True when a category belongs in the public portfolio (Homepage & Gallery),
- * excluding Admin, Feedback, and Package categories.
+ * True when a category belongs in the public portfolio (Gallery & Portfolio preview),
+ * excluding Admin, Feedback, Scroll, and Package categories.
  */
 export function isPublicPortfolioCategory(c: Category): boolean {
-  return !isAdminCategory(c) && c.type !== "FEEDBACK" && !isPackageCategory(c);
+  return (
+    !isAdminCategory(c) &&
+    c.type !== "FEEDBACK" &&
+    !isPackageCategory(c) &&
+    !isScrollCategory(c)
+  );
 }
 
 /**
- * True when a photo should be shown in the public portfolio (Homepage & Gallery).
- * Excludes photos assigned to Admin, Feedback, or any Package category.
+ * True when a photo should be shown in the public portfolio (Gallery & Portfolio preview).
+ * Excludes photos assigned to Admin, Feedback, Scroll, or any Package category.
  */
 export function isPublicPortfolioPhoto(p: { categories?: Category[] }): boolean {
   const cats = p.categories ?? [];
   return !cats.some(
-    (c) => isAdminCategory(c) || c.type === "FEEDBACK" || isPackageCategory(c),
+    (c) =>
+      isAdminCategory(c) ||
+      c.type === "FEEDBACK" ||
+      isPackageCategory(c) ||
+      isScrollCategory(c),
   );
 }
 
@@ -63,7 +104,7 @@ export function isPublicPortfolioPhoto(p: { categories?: Category[] }): boolean 
  */
 export function categoryLabel(c: Category): string {
   if (isAdminCategory(c)) return "Admin";
-  if (c.type === "FEEDBACK") return c.name;
+  if (c.type === "FEEDBACK" || isScrollCategory(c)) return c.name;
   if (isPackageCategory(c)) {
     return /^gói\b/i.test(c.name.trim()) ? c.name : `Gói · ${c.name}`;
   }

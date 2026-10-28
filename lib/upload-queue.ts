@@ -14,14 +14,16 @@
  *   returns the persisted Photo entity.
  */
 
+import type { CloudinaryUploadedAsset } from "@/lib/api/photos";
+
 export const MAX_CONCURRENT_UPLOADS = 2;
 export const MAX_RETRIES_PER_FILE = 3;
 
-export type UploadState = "pending" | "uploading" | "done" | "error";
+export type UploadState = "pending" | "uploading" | "saving" | "done" | "error";
 
 export interface QueueUploadItem<TCrop = unknown> {
   key: string;
-  /** Original untouched File chosen by the Admin — sent to the backend. */
+  /** Original untouched File chosen by the Admin — sent directly to Cloudinary. */
   file: File;
   /** Small canvas blob URL used ONLY for UI preview; never uploaded. */
   preview: string | null;
@@ -32,6 +34,8 @@ export interface QueueUploadItem<TCrop = unknown> {
   state: UploadState;
   /** Number of manual retries attempted for this item. */
   retryCount: number;
+  /** Cached Cloudinary upload result when Phase B succeeded so retry only repeats Phase C (DB save). */
+  uploadedAsset?: CloudinaryUploadedAsset;
   /** True when the file failed client-side format validation before any network call. */
   unrecoverableFormatError?: boolean;
   error?: string;
@@ -48,7 +52,9 @@ export function formatUploadProgressText(
 ): string {
   const doneCount = items.filter((p) => p.state === "done").length;
   const errorCount = items.filter((p) => p.state === "error").length;
-  const uploadingItems = items.filter((p) => p.state === "uploading");
+  const uploadingItems = items.filter(
+    (p) => p.state === "uploading" || p.state === "saving",
+  );
 
   let text = `Đã tải lên ${doneCount} / ${items.length} ảnh`;
   if (errorCount > 0) {
@@ -112,7 +118,10 @@ export async function runSequentialUploadBatch<
         continue;
       }
 
-      onItemPatch(key, { state: "uploading", error: undefined });
+      onItemPatch(key, {
+        state: current.uploadedAsset ? "saving" : "uploading",
+        error: undefined,
+      });
 
       try {
         const result = await performUpload(current, signal);
@@ -178,7 +187,7 @@ export async function runSingleRetry<
 
   const nextRetryCount = item.retryCount + 1;
   onItemPatch(item.key, {
-    state: "uploading",
+    state: item.uploadedAsset ? "saving" : "uploading",
     retryCount: nextRetryCount,
     error: undefined,
   });

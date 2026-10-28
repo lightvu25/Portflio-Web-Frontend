@@ -1,15 +1,19 @@
 "use client";
 
+import Script from "next/script";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Reveal } from "@/components/shared/Reveal";
 import {
   CopyIcon,
   FacebookIcon,
   InstagramIcon,
 } from "@/components/shared/contact";
+import { getAvailability } from "@/lib/api/availability";
+import { createBooking } from "@/lib/api/bookings";
 import {
   buildBookingCopyMessage,
+  formatHoldExpiryVi,
   formatShootDateVi,
   SOCIAL_CONTACT_LINKS,
 } from "@/lib/booking-message";
@@ -19,19 +23,23 @@ import {
   sessionTypeLabel,
   slotLabel,
 } from "@/lib/labels";
+import { resolveCaptchaToken } from "@/lib/turnstile";
+import type { AvailabilityResponse } from "@/types/availability";
 import type { PricingPackage } from "@/types/pricing";
-import type { Slot } from "@/types/booking";
+import type { Booking, Slot } from "@/types/booking";
+
+/** NODE_ENV is inlined at build time — production builds can never bypass. */
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 const PHONE_10_DIGITS_REGEX = /^\d{10}$/;
 
-interface ClientBookingDraft {
-  customerName: string;
-  phone: string;
-  instagram: string | null;
-  address: string;
-  note: string | null;
-  shootDate: string;
-  slot: Slot | null;
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (el: HTMLElement, options: Record<string, unknown>) => string;
+      reset: (widgetId?: string) => void;
+    };
+  }
 }
 
 const input =
@@ -40,19 +48,19 @@ const label =
   "mb-1.5 block font-medium text-xs font-medium uppercase tracking-[0.12em] text-grey-50";
 
 /**
- * Integrated Booking Form — decoupled from backend API requests.
- * Validates customer input on the client and immediately generates a ready-to-send
- * summary message for the customer to copy and send to Bấu via Facebook or Instagram.
+ * Integrated Booking Form — real submission via POST /api/bookings.
+ * Embedded directly inside the Services (/pricing#booking) page.
  */
 function BookingFormInner({
   packages,
+  turnstileSiteKey,
   selectedPackageId,
   onSelectPackageId,
   hidePackageSelector = false,
   embeddedInZoom = false,
 }: {
   packages: PricingPackage[];
-  turnstileSiteKey?: string | undefined;
+  turnstileSiteKey: string | undefined;
   selectedPackageId?: number;
   onSelectPackageId?: (id: number) => void;
   hidePackageSelector?: boolean;
@@ -82,23 +90,89 @@ function BookingFormInner({
 
   const [date, setDate] = useState("");
   const [slot, setSlot] = useState<Slot>("MORNING");
+  const [availabilityMap, setAvailabilityMap] = useState<
+    Record<string, AvailabilityResponse>
+  >({});
+  const availability = date ? (availabilityMap[date] ?? null) : null;
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [instagram, setInstagram] = useState("");
   const [note, setNote] = useState("");
-  const [state, setState] = useState<"idle" | "sent" | "error">("idle");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">(
+    "idle",
+  );
   const [errorMsg, setErrorMsg] = useState("");
-  const [submittedDraft, setSubmittedDraft] =
-    useState<ClientBookingDraft | null>(null);
+  const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
     "idle",
   );
+  const [tsToken, setTsToken] = useState("");
+  /** Widget script failed to load/render — no token can ever be issued. */
+  const [captchaFailed, setCaptchaFailed] = useState(false);
+  const turnstileRef = useRef<HTMLDivElement>(null);
+  const turnstileId = useRef<string | null>(null);
+
+  const renderTurnstile = () => {
+    if (!turnstileSiteKey || !turnstileRef.current || !window.turnstile) return;
+    if (turnstileId.current !== null) return;
+    try {
+      turnstileId.current = window.turnstile.render(turnstileRef.current, {
+        sitekey: turnstileSiteKey,
+        callback: (token: string) => setTsToken(token),
+        "expired-callback": () => setTsToken(""),
+        "error-callback": () => setTsToken(""),
+        "timeout-callback": () => setTsToken(""),
+        theme: "dark",
+      });
+    } catch {
+      setCaptchaFailed(true);
+    }
+  };
+
+  const resetTurnstile = () => {
+    if (turnstileId.current !== null)
+      window.turnstile?.reset(turnstileId.current);
+    setTsToken("");
+  };
 
   const selected = packages.find((p) => p.id === pkgId);
   const isFullDay = selected?.sessionType === "FULL_DAY";
 
-  const submit = (e: React.FormEvent) => {
+  // Live availability for the chosen date (cached per date).
+  useEffect(() => {
+    if (!date || availabilityMap[date]) return;
+    let cancelled = false;
+    getAvailability(date, date)
+      .then((list) => {
+        if (!cancelled && list[0]) {
+          const avail = list[0];
+          setAvailabilityMap((m) => ({ ...m, [date]: avail }));
+          // Auto-switch to open slot if one is taken
+          if (avail.morning !== "AVAILABLE" && avail.afternoon === "AVAILABLE") {
+            setSlot("AFTERNOON");
+          } else if (
+            avail.afternoon !== "AVAILABLE" &&
+            avail.morning === "AVAILABLE"
+          ) {
+            setSlot("MORNING");
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [date, availabilityMap]);
+
+  const slotTaken = (s: Slot) =>
+    availability
+      ? (s === "MORNING" ? availability.morning : availability.afternoon) !==
+        "AVAILABLE"
+      : false;
+  const fullDayTaken = availability ? !availability.fullDayAvailable : false;
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const normalizedPhone = phone.trim().replace(/\s+/g, "");
     if (
@@ -117,36 +191,94 @@ function BookingFormInner({
       setState("error");
       return;
     }
-
-    setSubmittedDraft({
-      customerName: name.trim(),
-      phone: normalizedPhone,
-      instagram: instagram.trim() || null,
-      address: address.trim(),
-      note: note.trim() || null,
-      shootDate: date,
-      slot: isFullDay ? null : slot,
+    if (isFullDay && fullDayTaken) {
+      setErrorMsg("Ngày này đã kín lịch cả ngày — vui lòng chọn ngày khác.");
+      setState("error");
+      return;
+    }
+    if (!isFullDay && slotTaken(slot)) {
+      setErrorMsg("Buổi này đã có lịch — vui lòng chọn buổi khác.");
+      setState("error");
+      return;
+    }
+    const captcha = resolveCaptchaToken({
+      siteKey: turnstileSiteKey,
+      token: tsToken,
+      isProduction: IS_PRODUCTION,
+      widgetFailed: captchaFailed,
     });
-    setCopyState("idle");
-    setErrorMsg("");
-    setState("sent");
+    if (!captcha.ok) {
+      setErrorMsg(
+        captcha.reason === "missing-token"
+          ? "Vui lòng hoàn thành xác nhận captcha."
+          : "Xác nhận bảo mật chưa sẵn sàng — vui lòng tải lại trang hoặc thử lại sau.",
+      );
+      setState("error");
+      return;
+    }
+    setState("sending");
+    try {
+      const booking = await createBooking({
+        packageId: selected.id,
+        customerName: name.trim(),
+        phone: normalizedPhone,
+        instagram: instagram.trim() || undefined,
+        bookingDate: date,
+        slot: isFullDay ? undefined : slot,
+        address: address.trim(),
+        note: note.trim() || undefined,
+        turnstileToken: captcha.token,
+      });
+      setCreatedBooking(booking);
+      setCopyState("idle");
+      setErrorMsg("");
+      setState("sent");
+      // Invalidate and reload live availability for this date
+      getAvailability(date, date)
+        .then((list) => {
+          if (list[0]) {
+            setAvailabilityMap((m) => ({ ...m, [date]: list[0] }));
+          }
+        })
+        .catch(() => {});
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error
+          ? err.message
+          : "Đặt lịch thất bại — vui lòng thử lại.",
+      );
+      setState("error");
+      resetTurnstile();
+      // Invalidate and reload availability to sync latest slot status
+      if (date) {
+        getAvailability(date, date)
+          .then((list) => {
+            if (list[0]) {
+              setAvailabilityMap((m) => ({ ...m, [date]: list[0] }));
+            }
+          })
+          .catch(() => {});
+      }
+    }
   };
 
   const copyMessage =
-    submittedDraft && selected
+    createdBooking && selected
       ? buildBookingCopyMessage({
-          status: "PENDING",
+          bookingCode: createdBooking.bookingCode,
+          status: createdBooking.status,
+          expiresAt: createdBooking.expiresAt,
           packageName: selected.name,
           sessionType: selected.sessionType,
           groupSize: selected.groupSize,
           packagePrice: selected.price,
-          shootDate: submittedDraft.shootDate,
-          slot: isFullDay ? null : submittedDraft.slot,
-          customerName: submittedDraft.customerName,
-          phone: submittedDraft.phone,
-          instagram: submittedDraft.instagram,
-          address: submittedDraft.address,
-          note: submittedDraft.note,
+          shootDate: date,
+          slot: isFullDay ? null : slot,
+          customerName: createdBooking.customerName || name.trim(),
+          phone: createdBooking.phone || phone.trim(),
+          instagram: createdBooking.instagram ?? (instagram.trim() || null),
+          address: createdBooking.address || address.trim(),
+          note: createdBooking.note ?? (note.trim() || null),
         })
       : "";
 
@@ -159,6 +291,8 @@ function BookingFormInner({
       setCopyState("failed");
     }
   };
+
+  const holdExpiryText = formatHoldExpiryVi(createdBooking?.expiresAt);
 
   const formBody = (
     <>
@@ -175,28 +309,45 @@ function BookingFormInner({
         </h3>
         <p className="mt-2 max-w-xl text-sm leading-6 text-grey-50">
           {hidePackageSelector
-            ? "Chọn ngày chụp và điền thông tin bên dưới để tạo sẵn tin nhắn tóm tắt gửi cho Bấu."
-            : "Chọn gói chụp, ngày chụp và điền thông tin bên dưới để tạo sẵn tin nhắn tóm tắt gửi cho Bấu."}
+            ? "Chọn ngày chụp và điền thông tin bên dưới để hệ thống giữ chỗ tạm thời và tạo sẵn tin nhắn gửi cho Bấu."
+            : "Chọn gói chụp, ngày chụp và điền thông tin bên dưới để hệ thống giữ chỗ tạm thời và tạo sẵn tin nhắn gửi cho Bấu."}
         </p>
       </div>
 
-      {state === "sent" && submittedDraft && selected ? (
+      {state === "sent" && createdBooking && selected ? (
         <div className="mt-6 space-y-6 rounded-[14px] bg-dark-08 p-6 md:p-8">
           <div className="pb-2">
             <span className="inline-flex items-center rounded-full bg-brand-55/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-brand-55">
-              {bookingStatusLabel.PENDING} · Chưa thanh toán cọc
+              {bookingStatusLabel[createdBooking.status]} · Chưa thanh toán cọc
             </span>
             <h3 className="mt-3 font-semibold text-2xl font-semibold text-absolutewhite">
-              Đã tạo thông tin đăng ký đặt lịch
+              Đã ghi nhận yêu cầu giữ chỗ tạm thời
             </h3>
             <p className="mt-2 text-sm leading-6 text-grey-50">
-              Hãy sao chép tin nhắn tóm tắt bên dưới và gửi qua Facebook hoặc
-              Instagram để trao đổi lịch trống và xác nhận đặt cọc cùng Bấu nhé.
+              Mã đặt lịch của bạn là{" "}
+              <span className="font-mono text-lg font-semibold text-brand-55">
+                {createdBooking.bookingCode}
+              </span>
+              . Lịch chụp hiện ở trạng thái{" "}
+              <strong className="text-absolutewhite">chờ xử lý</strong>{" "}
+              {holdExpiryText
+                ? `(giữ chỗ tạm thời đến ${holdExpiryText})`
+                : "(giữ chỗ tạm thời 30 phút)"}{" "}
+              và sẽ được xác nhận chính thức sau khi bạn trao đổi với Bấu và
+              hoàn tất đặt cọc.
             </p>
           </div>
 
           {/* Summary grid */}
           <dl className="grid gap-4 rounded-[12px] bg-dark-06 p-5 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
+                Mã đặt lịch
+              </dt>
+              <dd className="mt-1 font-mono font-semibold text-brand-55">
+                {createdBooking.bookingCode}
+              </dd>
+            </div>
             <div>
               <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
                 Gói chụp
@@ -211,10 +362,8 @@ function BookingFormInner({
                 Ngày dự kiến chụp &amp; Buổi
               </dt>
               <dd className="mt-1 font-medium text-absolutewhite">
-                {formatShootDateVi(submittedDraft.shootDate)} ·{" "}
-                {isFullDay
-                  ? "Cả ngày (Sáng + Chiều)"
-                  : slotLabel[submittedDraft.slot ?? slot]}
+                {formatShootDateVi(date)} ·{" "}
+                {isFullDay ? "Cả ngày (Sáng + Chiều)" : slotLabel[slot]}
               </dd>
             </div>
             <div>
@@ -222,24 +371,25 @@ function BookingFormInner({
                 Họ tên bạn &amp; SĐT
               </dt>
               <dd className="mt-1 font-medium text-absolutewhite">
-                {submittedDraft.customerName} · {submittedDraft.phone}
+                {createdBooking.customerName || name.trim()} ·{" "}
+                {createdBooking.phone || phone.trim()}
               </dd>
             </div>
-            <div>
+            <div className="sm:col-span-2">
               <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
                 Địa chỉ cụ thể
               </dt>
               <dd className="mt-1 text-absolutewhite">
-                {submittedDraft.address}
+                {createdBooking.address || address.trim()}
               </dd>
             </div>
-            {submittedDraft.note && (
+            {(createdBooking.note || note.trim()) && (
               <div className="sm:col-span-2">
                 <dt className="text-xs uppercase tracking-[0.1em] text-grey-40">
                   Lưu ý với thợ
                 </dt>
                 <dd className="mt-1 whitespace-pre-wrap text-absolutewhite">
-                  {submittedDraft.note}
+                  {createdBooking.note || note.trim()}
                 </dd>
               </div>
             )}
@@ -288,36 +438,27 @@ function BookingFormInner({
               {copyMessage}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <div className="flex items-center gap-3">
-                <a
-                  href={SOCIAL_CONTACT_LINKS.facebook}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Mở Facebook"
-                  title="Mở Facebook"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 hover:text-absolutewhite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
-                >
-                  <FacebookIcon size={18} />
-                </a>
-                <a
-                  href={SOCIAL_CONTACT_LINKS.instagram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Mở Instagram"
-                  title="Mở Instagram"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 hover:text-absolutewhite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
-                >
-                  <InstagramIcon size={18} />
-                </a>
-              </div>
-              <button
-                type="button"
-                onClick={() => setState("idle")}
-                className="text-xs font-medium text-grey-50 transition-colors hover:text-absolutewhite"
+            <div className="flex items-center gap-3 pt-1">
+              <a
+                href={SOCIAL_CONTACT_LINKS.facebook}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Mở Facebook"
+                title="Mở Facebook"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 hover:text-absolutewhite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
               >
-                ← Chỉnh sửa thông tin đặt lịch
-              </button>
+                <FacebookIcon size={18} />
+              </a>
+              <a
+                href={SOCIAL_CONTACT_LINKS.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Mở Instagram"
+                title="Mở Instagram"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-dark-12 text-grey-80 transition-colors hover:bg-dark-15 hover:text-absolutewhite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55"
+              >
+                <InstagramIcon size={18} />
+              </a>
             </div>
           </div>
         </div>
@@ -378,26 +519,41 @@ function BookingFormInner({
             <div>
               <span className={label}>Buổi chụp</span>
               {isFullDay ? (
-                <p className="rounded-[10px] bg-dark-08 px-4 py-3 text-sm text-grey-50">
-                  Gói cả ngày — bao gồm sáng và chiều.
+                <p
+                  className={`rounded-[10px] px-4 py-3 text-sm ${
+                    fullDayTaken
+                      ? "bg-red-500/10 text-red-700"
+                      : "bg-dark-08 text-grey-50"
+                  }`}
+                >
+                  {fullDayTaken
+                    ? "Ngày này đã kín lịch cả ngày."
+                    : "Gói cả ngày — bao gồm sáng và chiều."}
                 </p>
               ) : (
                 <div className="flex gap-3">
-                  {(["MORNING", "AFTERNOON"] as Slot[]).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setSlot(s)}
-                      aria-pressed={slot === s}
-                      className={`flex-1 rounded-[10px] py-3 font-medium text-sm transition-colors ${
-                        slot === s
-                          ? "bg-brand-55/20 font-semibold text-absolutewhite"
-                          : "bg-dark-08 text-grey-70 hover:bg-dark-15 hover:text-absolutewhite"
-                      }`}
-                    >
-                      {slotLabel[s]}
-                    </button>
-                  ))}
+                  {(["MORNING", "AFTERNOON"] as Slot[]).map((s) => {
+                    const taken = date ? slotTaken(s) : false;
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        disabled={taken}
+                        onClick={() => setSlot(s)}
+                        aria-pressed={slot === s}
+                        className={`flex-1 rounded-[10px] py-3 font-medium text-sm transition-colors ${
+                          taken
+                            ? "cursor-not-allowed bg-dark-08 text-grey-40 line-through"
+                            : slot === s
+                              ? "bg-brand-55/20 font-semibold text-absolutewhite"
+                              : "bg-dark-08 text-grey-70 hover:bg-dark-15 hover:text-absolutewhite"
+                        }`}
+                      >
+                        {slotLabel[s]}
+                        {taken ? " (kín)" : ""}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -487,6 +643,31 @@ function BookingFormInner({
             </div>
           </div>
 
+          {turnstileSiteKey ? (
+            <>
+              <Script
+                src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+                strategy="afterInteractive"
+                onReady={renderTurnstile}
+                onError={() => setCaptchaFailed(true)}
+              />
+              <div ref={turnstileRef} />
+              {captchaFailed && (
+                <p className="text-sm text-red-600">
+                  Không tải được xác nhận bảo mật — vui lòng kiểm tra kết nối và
+                  tải lại trang.
+                </p>
+              )}
+            </>
+          ) : (
+            IS_PRODUCTION && (
+              <p role="alert" className="text-sm text-red-600">
+                Xác nhận bảo mật chưa sẵn sàng — vui lòng tải lại trang hoặc thử
+                lại sau.
+              </p>
+            )
+          )}
+
           {state === "error" && (
             <p role="alert" className="text-sm text-red-600">
               {errorMsg}
@@ -495,10 +676,10 @@ function BookingFormInner({
 
           <button
             type="submit"
-            disabled={packages.length === 0}
+            disabled={state === "sending" || packages.length === 0}
             className="w-full rounded-[10px] bg-brand-55 py-3.5 font-medium text-sm font-medium text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-[transform,background-color] duration-200 hover:scale-[1.01] hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 disabled:opacity-50"
           >
-            Gửi yêu cầu đặt lịch
+            {state === "sending" ? "Đang gửi…" : "Gửi yêu cầu đặt lịch"}
           </button>
         </form>
       )}

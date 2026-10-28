@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useMemo, useRef } from "react";
 import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap";
-import { isPublicPortfolioPhoto } from "@/lib/labels";
+import { isAdminCategory, isPackageCategory } from "@/lib/labels";
 import type { ResolvedSiteStats } from "@/lib/site-stats";
 import type { Photo } from "@/types/photo";
 import styles from "./StickyGridSection.module.css";
@@ -56,13 +56,18 @@ export function StickyGridSection({
 
   const displayName = (photographerName?.trim() || "Bấu Chụp Choẹt").toUpperCase();
 
-  // Ensure 12 Polaroid slots distributed across 3 columns (4 original cards per column).
+  // Ensure at least 12 Polaroid slots distributed across 3 columns ( exclusively from the Scroll category ).
   const gridColumns = useMemo(() => {
-    const publicPhotos = photos.filter(isPublicPortfolioPhoto);
-    if (publicPhotos.length === 0) return [];
+    const scrollPhotos = photos.filter((p) =>
+      (p.categories ?? []).every(
+        (c) => !isAdminCategory(c) && c.type !== "FEEDBACK" && !isPackageCategory(c),
+      ),
+    );
+    if (scrollPhotos.length === 0) return [];
+    const totalSlots = Math.max(GRID_COUNT, scrollPhotos.length);
     const cols: PolaroidSlot[][] = Array.from({ length: NUM_COLUMNS }, () => []);
-    for (let i = 0; i < GRID_COUNT; i++) {
-      const photo = publicPhotos[i % publicPhotos.length];
+    for (let i = 0; i < totalSlots; i++) {
+      const photo = scrollPhotos[i % scrollPhotos.length];
       cols[i % NUM_COLUMNS].push({
         slotKey: `${photo.id}-slot-${i}`,
         photo,
