@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getCategories } from "@/lib/api/categories";
 import {
-  cancelActiveSnap,
   dispatchNavIntent,
   resolveCategoryHref,
   smoothScrollToElement,
@@ -142,7 +141,6 @@ export function CategoryMarquee({
     href: string,
     fallbackLabel: string,
   ) => {
-    cancelActiveSnap();
     if (pathname === "/gallery") {
       e.preventDefault();
       window.history.pushState(null, "", href);

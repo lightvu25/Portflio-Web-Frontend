@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  cancelActiveSnap,
   dispatchNavIntent,
   smoothScrollToTop,
 } from "@/lib/navigation";
@@ -83,14 +82,13 @@ export function SiteHeader() {
     href: string,
   ) => {
     setOpen(false);
-    cancelActiveSnap();
 
     if (href === "/" && pathname === "/") {
       e.preventDefault();
       if (window.location.hash || window.location.search) {
         window.history.pushState(null, "", "/");
       }
-      dispatchNavIntent({ type: "scroll-top" });
+      smoothScrollToTop();
       return;
     }
 
@@ -118,7 +116,6 @@ export function SiteHeader() {
 
   const handleBookingClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     setOpen(false);
-    cancelActiveSnap();
 
     if (pathname === "/pricing") {
       e.preventDefault();

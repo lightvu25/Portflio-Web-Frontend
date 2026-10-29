@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cancelActiveSnap, dispatchNavIntent } from "@/lib/navigation";
+import { dispatchNavIntent } from "@/lib/navigation";
 
 /**
  * Circular arrow CTA used next to the "ĐẶT LỊCH NGAY" headings (hero + footer).
@@ -18,7 +18,6 @@ export function CtaArrowLink({
   const pathname = usePathname();
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    cancelActiveSnap();
     if (pathname === "/pricing") {
       e.preventDefault();
       if (window.location.hash !== "#booking") {

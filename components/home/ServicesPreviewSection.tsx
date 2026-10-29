@@ -200,8 +200,6 @@ export function ServicesPreviewSection({
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (count <= 1 || isAnimatingOutRef.current) return;
       if (e.pointerType === "mouse" && e.button !== 0) return;
-      const target = e.target as HTMLElement | null;
-      if (target?.closest('a, button, [role="button"]')) return;
       pressedRef.current = true;
       draggedRef.current = false;
       startXRef.current = e.clientX;

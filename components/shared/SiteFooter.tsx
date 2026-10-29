@@ -22,7 +22,6 @@ import { getCategories } from "@/lib/api/categories";
 import { getSiteSettings } from "@/lib/api/site";
 import { isPublicPortfolioCategory } from "@/lib/labels";
 import {
-  cancelActiveSnap,
   dispatchNavIntent,
   resolveCategoryHref,
   smoothScrollToElement,
@@ -84,18 +83,16 @@ export function SiteFooter() {
   const zaloHref = resolveZaloHref(site?.messengerUrl);
 
   const handleHomeClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    cancelActiveSnap();
     if (pathname === "/") {
       e.preventDefault();
       if (window.location.hash || window.location.search) {
         window.history.pushState(null, "", "/");
       }
-      dispatchNavIntent({ type: "scroll-top" });
+      smoothScrollToTop();
     }
   };
 
   const handleGalleryRootClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    cancelActiveSnap();
     if (pathname === "/gallery") {
       e.preventDefault();
       if (window.location.search || window.location.hash) {
@@ -111,7 +108,6 @@ export function SiteFooter() {
     href: string,
     categoryName: string,
   ) => {
-    cancelActiveSnap();
     if (pathname === "/gallery") {
       e.preventDefault();
       window.history.pushState(null, "", href);
@@ -123,7 +119,6 @@ export function SiteFooter() {
   const handlePricingOverviewClick = (
     e: React.MouseEvent<HTMLAnchorElement>,
   ) => {
-    cancelActiveSnap();
     if (pathname === "/pricing") {
       e.preventDefault();
       if (window.location.search || window.location.hash) {
@@ -137,7 +132,6 @@ export function SiteFooter() {
     e: React.MouseEvent<HTMLAnchorElement>,
     sessionType?: "HALF_DAY" | "FULL_DAY",
   ) => {
-    cancelActiveSnap();
     if (pathname === "/pricing") {
       e.preventDefault();
       const targetUrl = sessionType
@@ -149,13 +143,12 @@ export function SiteFooter() {
   };
 
   const handleFeedbackClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    cancelActiveSnap();
     if (pathname === "/") {
       e.preventDefault();
       if (window.location.hash !== "#feedback") {
         window.history.pushState(null, "", "/#feedback");
       }
-      dispatchNavIntent({ type: "scroll-element", id: "feedback" });
+      smoothScrollToElement("feedback");
     }
   };
 

@@ -9,11 +9,8 @@
 import type { Category } from "@/types/category";
 
 export const BAU_NAV_INTENT_EVENT = "bau:nav-intent";
-export const BAU_CANCEL_SNAP_EVENT = "bau:cancel-snap";
 
 export type BauNavIntentDetail =
-  | { type: "scroll-top" }
-  | { type: "scroll-element"; id: string }
   | { type: "pricing-overview" }
   | {
       type: "pricing-booking";
@@ -92,16 +89,9 @@ export function resolveCategoryHref(
   return `/gallery?category=${encodeURIComponent(label)}`;
 }
 
-/** Cancels any active programmatic magnetic section snap tween. */
-export function cancelActiveSnap(): void {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(BAU_CANCEL_SNAP_EVENT));
-}
-
 /** Broadcasts a same-page navigation intent to mounted page controllers. */
 export function dispatchNavIntent(detail: BauNavIntentDetail): void {
   if (typeof window === "undefined") return;
-  cancelActiveSnap();
   window.dispatchEvent(
     new CustomEvent<BauNavIntentDetail>(BAU_NAV_INTENT_EVENT, { detail }),
   );
@@ -118,7 +108,6 @@ export function getStickyHeaderHeight(): number {
 /** Smoothly scrolls the window back to the very top (`scrollY = 0`). */
 export function smoothScrollToTop(): void {
   if (typeof window === "undefined") return;
-  cancelActiveSnap();
   const reduceMotion = window.matchMedia(
     "(prefers-reduced-motion: reduce)",
   ).matches;
@@ -135,7 +124,6 @@ export function smoothScrollToElement(id: string, extraOffsetPx = 8): boolean {
   }
   const el = document.getElementById(id);
   if (!el) return false;
-  cancelActiveSnap();
   const headerH = getStickyHeaderHeight();
   const rect = el.getBoundingClientRect();
   const targetY = Math.max(0, Math.round(rect.top + window.scrollY - headerH - extraOffsetPx));

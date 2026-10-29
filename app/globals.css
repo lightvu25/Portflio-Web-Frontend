@@ -107,17 +107,13 @@
     transform: none !important;
     transition: none !important;
   }
-
-  .animate-scroll-cue {
-    animation: none !important;
-  }
 }
 
 body {
   background: var(--dark-03);
   color: var(--absolutewhite);
   font-family: var(--font-manrope), Arial, Helvetica, sans-serif;
-  overflow-x: clip;
+  overflow-x: hidden;
 }
 /* --- Figma design tokens: animations + form resets (migrated from per-page tailwind.css) --- */
 
@@ -156,20 +152,6 @@ body {
 
 .animate-spin {
   animation: var(--animate-spin);
-}
-
-.animate-scroll-cue {
-  animation: scroll-cue 1.8s ease-in-out infinite;
-}
-
-@keyframes scroll-cue {
-  0%,
-  100% {
-    transform: translate3d(0, -2px, 0);
-  }
-  50% {
-    transform: translate3d(0, 3px, 0);
-  }
 }
 
 @keyframes spin {
