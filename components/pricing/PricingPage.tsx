@@ -14,6 +14,12 @@ import { BookingSection } from "@/components/booking/BookingPage";
 import { Reveal } from "@/components/shared/Reveal";
 import { gsap, useGSAP } from "@/lib/gsap";
 import { formatVnd, sessionTypeLabel } from "@/lib/labels";
+import {
+  BAU_NAV_INTENT_EVENT,
+  smoothScrollToElement,
+  smoothScrollToTop,
+  type BauNavIntentDetail,
+} from "@/lib/navigation";
 import type { Photo } from "@/types/photo";
 import type { PricingPackage } from "@/types/pricing";
 
@@ -89,22 +95,51 @@ function PricingPageContent({
 }) {
   const searchParams = useSearchParams();
   const queryPkgId = Number(searchParams.get("package"));
+  const rawSession = searchParams.get("session");
+  const querySession =
+    rawSession === "HALF_DAY" || rawSession === "FULL_DAY" ? rawSession : null;
+  const queryKey = `${queryPkgId || ""}:${querySession ?? ""}`;
+
+  const resolveQueryTarget = useCallback(
+    (pkgIdParam: number, sessionParam: "HALF_DAY" | "FULL_DAY" | null) => {
+      if (pkgIdParam) {
+        const matched = packages.find((p) => p.id === pkgIdParam);
+        if (matched) return matched;
+      }
+      if (sessionParam) {
+        return (
+          packages.find(
+            (p) => p.groupSize === 1 && p.sessionType === sessionParam,
+          ) ??
+          packages.find((p) => p.sessionType === sessionParam) ??
+          null
+        );
+      }
+      return null;
+    },
+    [packages],
+  );
 
   // Null = 3-card Grid View; 1 | 2 | 3 = Zoomed View for that groupSize
   const [zoomedGroup, setZoomedGroup] = useState<number | null>(() => {
-    if (queryPkgId) {
-      const matched = packages.find((p) => p.id === queryPkgId);
-      if (matched) return matched.groupSize;
-    }
-    return null;
+    const matched = resolveQueryTarget(queryPkgId, querySession);
+    return matched ? matched.groupSize : null;
   });
 
   const [selectedPkgId, setSelectedPkgId] = useState<number | undefined>(() => {
-    if (queryPkgId && packages.some((p) => p.id === queryPkgId)) {
-      return queryPkgId;
-    }
-    return packages[0]?.id;
+    const matched = resolveQueryTarget(queryPkgId, querySession);
+    return matched?.id ?? packages[0]?.id;
   });
+
+  const [prevQueryKey, setPrevQueryKey] = useState(queryKey);
+  if (queryKey !== prevQueryKey) {
+    setPrevQueryKey(queryKey);
+    const matched = resolveQueryTarget(queryPkgId, querySession);
+    if (matched) {
+      setZoomedGroup(matched.groupSize);
+      setSelectedPkgId(matched.id);
+    }
+  }
 
   const [dragging, setDragging] = useState(false);
 
@@ -121,6 +156,7 @@ function PricingPageContent({
   const flipFromRectRef = useRef<SavedRect | null>(null);
   const transitionModeRef = useRef<"open" | "change" | "close" | null>(null);
   const isAnimatingRef = useRef(false);
+  const pendingScrollToBookingRef = useRef(false);
 
   // Pointer drag state for switching between the 3 groups inside Zoomed View
   const pressedRef = useRef(false);
@@ -180,20 +216,34 @@ function PricingPageContent({
   useEffect(() => {
     const checkHashOrParam = () => {
       if (window.location.hash === "#booking") {
+        const matched = resolveQueryTarget(queryPkgId, querySession);
+        pendingScrollToBookingRef.current = true;
         setZoomedGroup((prev) => {
-          if (prev !== null) return prev;
-          if (queryPkgId) {
-            const found = packages.find((p) => p.id === queryPkgId);
-            if (found) return found.groupSize;
+          if (prev !== null) {
+            requestAnimationFrame(() => {
+              setTimeout(() => smoothScrollToElement("booking", 16), 60);
+            });
+            pendingScrollToBookingRef.current = false;
+            return prev;
           }
-          return 1;
+          return matched?.groupSize ?? 1;
         });
       }
     };
     checkHashOrParam();
     window.addEventListener("hashchange", checkHashOrParam);
     return () => window.removeEventListener("hashchange", checkHashOrParam);
-  }, [packages, queryPkgId]);
+  }, [queryPkgId, querySession, resolveQueryTarget]);
+
+  // Execute deferred scroll to `#booking` once Zoomed View has mounted it into the DOM.
+  useEffect(() => {
+    if (zoomedGroup === null || !pendingScrollToBookingRef.current) return;
+    pendingScrollToBookingRef.current = false;
+    const timer = window.setTimeout(() => {
+      smoothScrollToElement("booking", 16);
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [zoomedGroup]);
 
   /**
    * GridZoom hover effect (from template/GridZoom-main/src/js/grid.js):
@@ -226,7 +276,12 @@ function PricingPageContent({
    */
   const handleOpenGroup = useCallback(
     (size: number) => {
-      if (isAnimatingRef.current) return;
+      const otherCells = GROUPS.filter((g) => g.size !== size)
+        .map((g) => cellImgRefs.current[g.size]?.parentElement)
+        .filter((el): el is HTMLElement => Boolean(el));
+      gsap.killTweensOf(otherCells);
+      isAnimatingRef.current = false;
+
       const clickedEl = cellImgRefs.current[size];
       if (clickedEl) {
         const rect = clickedEl.getBoundingClientRect();
@@ -255,11 +310,6 @@ function PricingPageContent({
         return;
       }
 
-      // Animate out the other 2 cells briefly, then mount Zoomed View and FLIP-zoom the clicked image
-      const otherCells = GROUPS.filter((g) => g.size !== size)
-        .map((g) => cellImgRefs.current[g.size]?.parentElement)
-        .filter((el): el is HTMLElement => Boolean(el));
-
       isAnimatingRef.current = true;
       transitionModeRef.current = "open";
 
@@ -283,14 +333,19 @@ function PricingPageContent({
    */
   const handleSwitchGroupInZoom = useCallback(
     (nextSize: number) => {
-      if (isAnimatingRef.current || nextSize === zoomedGroup) return;
+      if (nextSize === zoomedGroup) return;
       const firstInGroup = packages.find((p) => p.groupSize === nextSize);
       if (firstInGroup) {
         setSelectedPkgId(firstInGroup.id);
       }
 
       const wrap = zoomImageWrapRef.current;
+      const inner = zoomImageInnerRef.current;
       const rightCol = zoomRightColRef.current;
+      const zoomView = zoomViewRef.current;
+      gsap.killTweensOf([wrap, inner, rightCol, zoomView].filter(Boolean));
+      isAnimatingRef.current = false;
+
       const reduceMotion =
         typeof window !== "undefined" &&
         window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -305,7 +360,7 @@ function PricingPageContent({
       transitionModeRef.current = "change";
 
       const tl = gsap.timeline({
-        defaults: { duration: 0.32, ease: "expo.in" },
+        defaults: { duration: 0.26, ease: "expo.in" },
         onComplete: () => {
           setZoomedGroup(nextSize);
         },
@@ -313,7 +368,7 @@ function PricingPageContent({
 
       tl.to(wrap, { scale: 0.84, autoAlpha: 0, x: 0, y: 0 }, 0);
       if (rightCol) {
-        tl.to(rightCol, { autoAlpha: 0, y: 18, duration: 0.26 }, 0);
+        tl.to(rightCol, { autoAlpha: 0, y: 18, duration: 0.22 }, 0);
       }
     },
     [packages, zoomedGroup],
@@ -361,6 +416,66 @@ function PricingPageContent({
       .to(wrap, { scale: 0.88, autoAlpha: 0 }, 0)
       .to(zoomView, { autoAlpha: 0, y: 16, duration: 0.35 }, 0);
   }, [zoomedGroup]);
+
+  // Respond immediately to Header / Footer same-page menu clicks (`/pricing` vs `/pricing#booking`)
+  useEffect(() => {
+    const onNavIntent = (evt: Event) => {
+      const detail = (evt as CustomEvent<BauNavIntentDetail>).detail;
+      if (!detail) return;
+
+      if (detail.type === "pricing-overview") {
+        pendingScrollToBookingRef.current = false;
+        handleBackToGrid();
+        smoothScrollToTop();
+        return;
+      }
+
+      if (detail.type === "pricing-booking") {
+        const targetGroupBase = zoomedGroup ?? 1;
+        let targetPkg: PricingPackage | undefined;
+
+        if (detail.packageId) {
+          targetPkg = packages.find((p) => p.id === detail.packageId);
+        } else if (detail.sessionType) {
+          targetPkg =
+            packages.find(
+              (p) =>
+                p.groupSize === targetGroupBase &&
+                p.sessionType === detail.sessionType,
+            ) ?? packages.find((p) => p.sessionType === detail.sessionType);
+        } else {
+          targetPkg =
+            packages.find(
+              (p) => p.id === activePkgId && p.groupSize === targetGroupBase,
+            ) ?? packages.find((p) => p.groupSize === targetGroupBase);
+        }
+
+        const nextGroup = targetPkg?.groupSize ?? targetGroupBase;
+        if (targetPkg) {
+          setSelectedPkgId(targetPkg.id);
+        }
+
+        if (zoomedGroup === nextGroup) {
+          smoothScrollToElement("booking", 16);
+        } else {
+          gsap.killTweensOf(
+            [
+              zoomViewRef.current,
+              zoomImageWrapRef.current,
+              zoomRightColRef.current,
+            ].filter(Boolean),
+          );
+          isAnimatingRef.current = false;
+          transitionModeRef.current = null;
+          pendingScrollToBookingRef.current = true;
+          setZoomedGroup(nextGroup);
+        }
+      }
+    };
+
+    window.addEventListener(BAU_NAV_INTENT_EVENT, onNavIntent);
+    return () => window.removeEventListener(BAU_NAV_INTENT_EVENT, onNavIntent);
+  }, [activePkgId, handleBackToGrid, packages, zoomedGroup]);
 
   // Run GridZoom entrance / changeContent / closeContent animations when zoomedGroup updates
   useGSAP(
@@ -548,14 +663,18 @@ function PricingPageContent({
     { scope: stageRef, dependencies: [zoomedGroup] },
   );
 
-  // Pointer drag / swipe handlers on the zoomed showcase (supports both horizontal & vertical drag)
+  // Pointer drag / swipe handlers on the zoomed showcase card (supports both horizontal & vertical drag)
   const onZoomPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (isAnimatingRef.current || zoomedGroup === null) return;
+      if (zoomedGroup === null) return;
       if (e.pointerType === "mouse" && e.button !== 0) return;
       // Ignore interactions inside form fields or explicit buttons/links
       const target = e.target as HTMLElement;
-      if (target.closest("input, textarea, select, label, form, a, [data-zoom-back], [data-mini-cell]")) {
+      if (
+        target.closest(
+          'button, a, [role="button"], input, textarea, select, label, form, [data-zoom-back], [data-mini-cell], [data-sub-pkg]',
+        )
+      ) {
         return;
       }
       pressedRef.current = true;
@@ -852,19 +971,17 @@ function PricingPageContent({
                 </div>
               </div>
 
-              {/* Main 2-column GridZoom Stage (supports pointer drag anywhere outside the booking form) */}
-              <div
-                onPointerDown={onZoomPointerDown}
-                onPointerMove={onZoomPointerMove}
-                onPointerUp={onZoomPointerUp}
-                onPointerCancel={onZoomPointerUp}
-                className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12"
-              >
+              {/* Main 2-column GridZoom Stage */}
+              <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
                 {/* Left Column: Zoomed Image Showcase (draggable up/down or left/right to switch group) */}
                 <div className="lg:sticky lg:top-24 lg:col-span-5">
                   <div
                     ref={zoomImageWrapRef}
                     data-zoom-image
+                    onPointerDown={onZoomPointerDown}
+                    onPointerMove={onZoomPointerMove}
+                    onPointerUp={onZoomPointerUp}
+                    onPointerCancel={onZoomPointerUp}
                     className={`relative overflow-hidden rounded-[18px] bg-dark-08 shadow-[0_20px_48px_rgba(0,0,0,0.12)] select-none touch-pan-y ${
                       dragging ? "cursor-grabbing" : "cursor-grab"
                     }`}

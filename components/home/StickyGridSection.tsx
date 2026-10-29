@@ -222,6 +222,7 @@ export function StickyGridSection({
 
         const syncStatCounters = () => {
           const prog = mainTimeline.progress();
+          ctaContainer.dataset.ctaActive = prog >= 0.7 ? "true" : "false";
           if (prog < 0.15 || prog > 0.85) {
             if (!counterActive.some(Boolean)) return;
           }
@@ -285,6 +286,18 @@ export function StickyGridSection({
           return tl;
         };
 
+        const syncHeroSnapDataset = (st: ScrollTrigger) => {
+          const total = mainTimeline.duration() || 1;
+          const statsLabelTime =
+            (mainTimeline.labels["stage-stats"] ?? total * 0.45) + 0.14;
+          const statsProgress = gsap.utils.clamp(0.25, 0.75, statsLabelTime / total);
+          const span = Math.max(0, st.end - st.start);
+          const statsY = Math.round(st.start + span * statsProgress);
+          const ctaY = Math.round(st.end);
+          block.dataset.statsScrollY = String(statsY);
+          block.dataset.ctaScrollY = String(ctaY);
+        };
+
         const mainTimeline = gsap.timeline({
           onUpdate: syncStatCounters,
           scrollTrigger: {
@@ -293,33 +306,7 @@ export function StickyGridSection({
             end: "bottom bottom",
             scrub: 0.35,
             invalidateOnRefresh: true,
-            snap: {
-              snapTo: (value, self) => {
-                const total = mainTimeline.duration() || 1;
-                const statsProgress =
-                  (mainTimeline.labels["stage-stats"] ?? total * 0.48) / total;
-                const points = [0, statsProgress, 1];
-                const dir = self?.direction ?? 0;
-                const threshold = 0.04;
-                if (dir > 0) {
-                  for (const p of points) {
-                    if (p >= value - threshold) return p;
-                  }
-                  return 1;
-                }
-                if (dir < 0) {
-                  for (let i = points.length - 1; i >= 0; i--) {
-                    if (points[i] <= value + threshold) return points[i];
-                  }
-                  return 0;
-                }
-                return gsap.utils.snap(points, value);
-              },
-              inertia: false,
-              duration: { min: 0.28, max: 0.55 },
-              delay: 0.06,
-              ease: "power2.inOut",
-            },
+            onRefresh: syncHeroSnapDataset,
           },
         });
 
@@ -370,6 +357,12 @@ export function StickyGridSection({
           )
           .to({}, { duration: 0.2 })
           .addLabel("stage-cta");
+
+        if (mainTimeline.scrollTrigger) {
+          syncHeroSnapDataset(mainTimeline.scrollTrigger);
+        }
+        ctaContainer.dataset.ctaActive =
+          mainTimeline.progress() >= 0.7 ? "true" : "false";
 
         ScrollTrigger.addEventListener("refreshInit", measureHeader);
 
@@ -425,6 +418,7 @@ export function StickyGridSection({
   return (
     <section
       ref={blockRef}
+      data-sticky-hero
       aria-label="Giới thiệu và trải nghiệm bộ sưu tập"
       className={styles.block}
     >

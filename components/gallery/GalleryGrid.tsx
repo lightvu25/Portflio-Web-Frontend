@@ -2,14 +2,27 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap";
 import { isPublicPortfolioCategory, isPublicPortfolioPhoto } from "@/lib/labels";
+import {
+  BAU_NAV_INTENT_EVENT,
+  findMatchingCategory,
+  type BauNavIntentDetail,
+} from "@/lib/navigation";
 import type { Category } from "@/types/category";
 import type { Photo } from "@/types/photo";
 
 /** Deterministic subtle Polaroid tilt angles (degrees) indexed by card position. */
 const TILTS = [-2.2, 1.6, -1.3, 2.4, -1.8, 1.2];
+
+function resolveCategoryTabId(
+  query: string | null | undefined,
+  categories: readonly Category[],
+): string {
+  const matched = findMatchingCategory(query, categories);
+  return matched ? String(matched.id) : "";
+}
 
 /**
  * Filterable portfolio grid — masonry columns with category chips and
@@ -34,14 +47,37 @@ export function GalleryGrid({
     [photos],
   );
 
-  const [active, setActive] = useState<string>(() => {
-    if (!initialCategory) return "";
-    const wanted = initialCategory.replace(/s$/i, "").toLowerCase();
-    const match = publicCategories.find(
-      (c) => c.name.toLowerCase() === wanted || c.slug.toLowerCase() === wanted,
-    );
-    return match ? String(match.id) : "";
-  });
+  const [prevInitialCategory, setPrevInitialCategory] = useState(initialCategory);
+  const [active, setActive] = useState<string>(() =>
+    resolveCategoryTabId(initialCategory, publicCategories),
+  );
+
+  // Sync active tab if Server Component re-renders with a new `?category=` prop.
+  if (initialCategory !== prevInitialCategory) {
+    setPrevInitialCategory(initialCategory);
+    setActive(resolveCategoryTabId(initialCategory, publicCategories));
+  }
+
+  // Listen for same-page category clicks (Header `/gallery`, Footer, CategoryMarquee) & Back/Forward.
+  useEffect(() => {
+    const onNavIntent = (evt: Event) => {
+      const detail = (evt as CustomEvent<BauNavIntentDetail>).detail;
+      if (!detail || detail.type !== "gallery-category") return;
+      setActive(resolveCategoryTabId(detail.category, publicCategories));
+    };
+
+    const onPopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      setActive(resolveCategoryTabId(params.get("category"), publicCategories));
+    };
+
+    window.addEventListener(BAU_NAV_INTENT_EVENT, onNavIntent);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener(BAU_NAV_INTENT_EVENT, onNavIntent);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [publicCategories]);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
@@ -54,11 +90,23 @@ export function GalleryGrid({
     }, 120);
   }, []);
 
+  const handleTabSelect = useCallback((id: string, name: string) => {
+    setActive(id);
+    if (typeof window !== "undefined") {
+      const nextUrl = id
+        ? `/gallery?category=${encodeURIComponent(name)}`
+        : "/gallery";
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, []);
+
   const filtered = useMemo(
     () =>
       active === ""
         ? publicPhotos
-        : publicPhotos.filter((p) => p.categories.some((c) => String(c.id) === active)),
+        : publicPhotos.filter((p) =>
+            p.categories.some((c) => String(c.id) === active),
+          ),
     [active, publicPhotos],
   );
 
@@ -71,12 +119,18 @@ export function GalleryGrid({
       }
       const container = gridRef.current;
       if (!container) return;
-      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
       const cards = gsap.utils.toArray<HTMLElement>(".gallery-card", container);
       if (cards.length === 0) return;
 
       if (reduceMotion) {
-        gsap.set(cards, { autoAlpha: 1, y: 0, clearProps: "transform,willChange" });
+        gsap.set(cards, {
+          autoAlpha: 1,
+          y: 0,
+          clearProps: "transform,willChange",
+        });
         return;
       }
 
@@ -154,16 +208,28 @@ export function GalleryGrid({
     { scope: gridRef, dependencies: [active, filtered.length] },
   );
 
+  const tabs = useMemo(
+    () => [
+      { id: "", name: "Tất cả" },
+      ...publicCategories.map((c) => ({ id: String(c.id), name: c.name })),
+    ],
+    [publicCategories],
+  );
+
   return (
-    <div ref={gridRef}>
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Lọc theo danh mục">
-        {[{ id: "", name: "Tất cả" }, ...publicCategories.map((c) => ({ id: String(c.id), name: c.name }))].map((c) => (
+    <div id="gallery-grid" ref={gridRef} className="scroll-mt-24">
+      <div
+        className="flex flex-wrap gap-2"
+        role="tablist"
+        aria-label="Lọc theo danh mục"
+      >
+        {tabs.map((c) => (
           <button
-            key={c.id}
+            key={c.id || "all"}
             type="button"
             role="tab"
             aria-selected={active === c.id}
-            onClick={() => setActive(c.id)}
+            onClick={() => handleTabSelect(c.id, c.name)}
             className={`rounded-[10px] px-4 py-2 font-medium text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 ${
               active === c.id
                 ? "bg-brand-55/15 text-brand-55"
@@ -178,7 +244,8 @@ export function GalleryGrid({
         {filtered.map((p, i) => {
           const tilt = TILTS[i % TILTS.length];
           const portfolioCat = p.categories.find(isPublicPortfolioCategory);
-          const categoryLabel = portfolioCat?.name ?? p.categories[0]?.name ?? "Bấu Chụp Choẹt";
+          const categoryLabel =
+            portfolioCat?.name ?? p.categories[0]?.name ?? "Bấu Chụp Choẹt";
           return (
             <Link
               key={p.id}

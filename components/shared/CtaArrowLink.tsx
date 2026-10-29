@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cancelActiveSnap, dispatchNavIntent } from "@/lib/navigation";
 
 /**
  * Circular arrow CTA used next to the "ĐẶT LỊCH NGAY" headings (hero + footer).
@@ -11,9 +15,27 @@ export function CtaArrowLink({
   className?: string;
   label?: string;
 }) {
+  const pathname = usePathname();
+
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    cancelActiveSnap();
+    if (pathname === "/pricing") {
+      e.preventDefault();
+      if (window.location.hash !== "#booking") {
+        window.history.pushState(
+          null,
+          "",
+          `${window.location.pathname}${window.location.search}#booking`,
+        );
+      }
+      dispatchNavIntent({ type: "pricing-booking" });
+    }
+  };
+
   return (
     <Link
       href="/pricing#booking"
+      onClick={handleClick}
       aria-label={label}
       className={`inline-flex shrink-0 items-center justify-center rounded-full bg-brand-55 text-white shadow-[inset_4px_4px_17.4px_#ffffff47] transition-all hover:scale-105 hover:bg-brand-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-55 focus-visible:ring-offset-2 ${className}`}
     >

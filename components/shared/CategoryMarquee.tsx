@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getCategories } from "@/lib/api/categories";
+import {
+  cancelActiveSnap,
+  dispatchNavIntent,
+  resolveCategoryHref,
+  smoothScrollToElement,
+} from "@/lib/navigation";
 import type { Category } from "@/types/category";
 
 /**
@@ -16,47 +23,20 @@ export const MARQUEE_CATEGORIES: readonly string[] = [
   "Concept",
 ];
 
-function normalizeCategoryText(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D")
-    .toLowerCase()
-    .trim();
-}
-
-function resolveCategoryHref(
-  label: string,
-  available: ReadonlyArray<Category | string> | null,
-): string {
-  if (!available || available.length === 0) {
-    return `/gallery?category=${encodeURIComponent(label)}`;
-  }
-  const target = normalizeCategoryText(label);
-  const matched = available.find((item) => {
-    if (typeof item === "string") {
-      return normalizeCategoryText(item) === target;
-    }
-    const cName = normalizeCategoryText(item.name);
-    const cSlug = item.slug.toLowerCase().replace(/-/g, " ").trim();
-    return cName === target || cSlug === target;
-  });
-  if (matched) {
-    const matchedName = typeof matched === "string" ? matched : matched.name;
-    return `/gallery?category=${encodeURIComponent(matchedName)}`;
-  }
-  return "/gallery";
-}
-
 function CategoryGroup({
   names,
   knownCategories,
   ariaHidden,
+  onSelectCategory,
 }: {
   names: readonly string[];
   knownCategories: ReadonlyArray<Category | string> | null;
   ariaHidden?: boolean;
+  onSelectCategory: (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string,
+    label: string,
+  ) => void;
 }) {
   return (
     <div
@@ -64,23 +44,27 @@ function CategoryGroup({
       aria-hidden={ariaHidden ? true : undefined}
       className="flex shrink-0 items-center gap-8 pr-8"
     >
-      {names.map((label, i) => (
-        <span
-          key={`${label}-${i}`}
-          className="flex items-center gap-8 whitespace-nowrap"
-        >
-          <Link
-            href={resolveCategoryHref(label, knownCategories)}
-            tabIndex={ariaHidden ? -1 : undefined}
-            className="font-medium text-base font-medium uppercase tracking-[0.14em] text-brand-90 transition-colors hover:text-brand-55 md:text-lg"
+      {names.map((label, i) => {
+        const href = resolveCategoryHref(label, knownCategories);
+        return (
+          <span
+            key={`${label}-${i}`}
+            className="flex items-center gap-8 whitespace-nowrap"
           >
-            {label}
-          </Link>
-          <span aria-hidden="true" className="text-brand-55">
-            ✦
+            <Link
+              href={href}
+              onClick={(e) => onSelectCategory(e, href, label)}
+              tabIndex={ariaHidden ? -1 : undefined}
+              className="font-medium text-base font-medium uppercase tracking-[0.14em] text-brand-90 transition-colors hover:text-brand-55 md:text-lg"
+            >
+              {label}
+            </Link>
+            <span aria-hidden="true" className="text-brand-55">
+              ✦
+            </span>
           </span>
-        </span>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -100,6 +84,7 @@ export function CategoryMarquee({
   availableCategories?: ReadonlyArray<Category | string>;
   ariaLabel?: string;
 }) {
+  const pathname = usePathname();
   const [fetchedCategories, setFetchedCategories] = useState<Category[] | null>(
     null,
   );
@@ -152,6 +137,28 @@ export function CategoryMarquee({
     return () => ro.disconnect();
   }, [list]);
 
+  const handleSelectCategory = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string,
+    fallbackLabel: string,
+  ) => {
+    cancelActiveSnap();
+    if (pathname === "/gallery") {
+      e.preventDefault();
+      window.history.pushState(null, "", href);
+      const qIndex = href.indexOf("?");
+      const queryCat =
+        qIndex >= 0
+          ? new URLSearchParams(href.slice(qIndex)).get("category")
+          : fallbackLabel;
+      dispatchNavIntent({
+        type: "gallery-category",
+        category: queryCat ?? fallbackLabel,
+      });
+      smoothScrollToElement("gallery-grid", 16);
+    }
+  };
+
   return (
     <div
       aria-label={ariaLabel}
@@ -170,6 +177,7 @@ export function CategoryMarquee({
             names={list}
             knownCategories={knownCategories}
             ariaHidden={i > 0}
+            onSelectCategory={handleSelectCategory}
           />
         ))}
       </div>

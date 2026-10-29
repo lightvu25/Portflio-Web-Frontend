@@ -149,7 +149,7 @@ function PhotoLightbox({ photo, onClose }: { photo: Photo; onClose: () => void }
       role="dialog"
       aria-modal="true"
       aria-label="Xem ảnh feedback"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
       onClick={onClose}
     >
       <button
