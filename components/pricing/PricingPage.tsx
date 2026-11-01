@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import { BookingSection } from "@/components/booking/BookingPage";
+import { ServiceInfoSection } from "@/components/pricing/ServiceInfoSection";
 import { Reveal } from "@/components/shared/Reveal";
 import { gsap, useGSAP } from "@/lib/gsap";
 import { formatVnd, sessionTypeLabel } from "@/lib/labels";
@@ -22,37 +23,6 @@ import {
 } from "@/lib/navigation";
 import type { Photo } from "@/types/photo";
 import type { PricingPackage } from "@/types/pricing";
-
-/** Photographer-defined service constants — stable content, kept as page data. */
-const SESSIONS = [
-  { label: "Ca sáng", time: "07:00 – 11:30" },
-  { label: "Ca chiều", time: "13:00 – 17:00" },
-];
-
-const BENEFITS = [
-  "Súng bong bóng, hắt sáng",
-  "Đèn (flash + giả nắng)",
-  "Trả full file đã căn chỉnh cơ bản",
-  "Hậu kì 10 ảnh chi tiết",
-  "Staff đi kèm (có tính thêm phí)",
-  "Hỗ trợ chụp film (nếu khách có máy sẵn)",
-];
-
-const SURCHARGES = [
-  {
-    title: "Chụp kéo dài đến 19:00",
-    detail: "Phụ phí +300.000 VNĐ.",
-  },
-  {
-    title: "Chụp ngoại tỉnh",
-    detail: "Chỉ áp dụng cho gói Cả ngày.",
-  },
-  {
-    title: "Chi phí di chuyển",
-    detail:
-      "Giá gói chưa bao gồm chi phí di chuyển. Phí di chuyển được ước tính theo địa điểm chụp thực tế và sẽ được xác nhận trước khi chốt lịch.",
-  },
-];
 
 /** The three customer groups — keyed by PricingPackage.groupSize. */
 const GROUPS = [
@@ -1197,76 +1167,12 @@ function PricingPageContent({
         </div>
       </section>
 
-      {/* ---------------- STATIC SERVICE INFO (IMAGE 3 — ALWAYS PRESERVED BELOW) ---------------- */}
-      <section aria-label="Thông tin chi tiết dịch vụ và quy trình đặt lịch" className="pt-12">
-        {/* 1. Session times */}
-        <div className="mx-auto max-w-[1400px] px-5 pb-12 md:px-10">
-          <h2 className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
-            Thời gian nhận ca
-          </h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {SESSIONS.map((s) => (
-              <div key={s.label} className="rounded-[14px] bg-dark-08 p-6">
-                <p className="text-sm text-grey-50">{s.label}</p>
-                <p className="mt-1 font-semibold text-2xl font-semibold text-absolutewhite">
-                  {s.time}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 2. Service benefits (Updated 6 items) */}
-        <div className="mx-auto max-w-[1400px] px-5 pb-12 md:px-10">
-          <h2 className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
-            Quyền lợi dịch vụ
-          </h2>
-          <div className="mt-4 grid gap-3 rounded-[14px] bg-dark-08 p-6 sm:grid-cols-2 lg:grid-cols-3">
-            {BENEFITS.map((b) => (
-              <p key={b} className="flex items-start gap-2.5 text-sm text-grey-70">
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
-                  className="mt-0.5 shrink-0 text-brand-55"
-                >
-                  <path
-                    d="M5 13l4 4L19 7"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                {b}
-              </p>
-            ))}
-          </div>
-        </div>
-
-        {/* 3. Surcharges & conditions */}
-        <div className="mx-auto max-w-[1400px] px-5 pb-14 md:px-10">
-          <h2 className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-grey-40">
-            Phụ phí &amp; Lưu ý
-          </h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            {SURCHARGES.map((item) => (
-              <div key={item.title} className="rounded-[14px] bg-dark-08 p-5">
-                <p className="font-semibold text-sm font-semibold text-absolutewhite">
-                  {item.title}
-                </p>
-                <p className="mt-1.5 text-sm leading-6 text-grey-70">
-                  {item.detail}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* ---------------- STATIC SERVICE INFO (ALWAYS PRESERVED BELOW) ---------------- */}
+      <section aria-label="Thông tin chi tiết dịch vụ và quy trình đặt lịch">
+        <ServiceInfoSection />
 
         {/* 4. 4-step Booking Process with 4 large display numbers */}
-        <div className="mx-auto max-w-[1400px] px-5 pb-16 md:px-10">
+        <div className="mx-auto max-w-[1400px] px-5 pt-12 pb-16 md:px-10 md:pt-16">
           <Reveal from="up">
             <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
               <div>

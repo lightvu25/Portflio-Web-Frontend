@@ -183,8 +183,10 @@
   line-height: 1.08;
   letter-spacing: -0.02em;
   text-transform: uppercase;
-  color: #ffffff;
-  text-shadow: 0 4px 24px rgba(26, 40, 20, 0.28);
+  color: #6B8E5A;
+  text-shadow:
+    0 0 18px rgba(255, 255, 255, 0.92),
+    0 2px 32px rgba(255, 255, 255, 0.75);
 }
 
 .stats {
