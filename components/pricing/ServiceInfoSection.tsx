@@ -9,6 +9,7 @@ import {
   SparkleIcon,
   StaffProfileIcon,
   StudioLightIcon,
+  TravelBikeIcon,
   type ServiceIconProps,
 } from "@/components/pricing/ServiceIcons";
 
@@ -188,15 +189,21 @@ export function ServiceInfoSection() {
             </div>
           </div>
 
-          <div className="mt-6 rounded-[10px] border border-dark-12 bg-dark-06 px-5 py-4">
-            <h3 className="text-[15px] font-semibold leading-snug text-absolutewhite">
-              Chi phí di chuyển
-            </h3>
-            <p className="mt-1.5 max-w-[68ch] text-sm leading-6 text-grey-70">
-              Giá gói chưa bao gồm chi phí di chuyển. Phí di chuyển được ước
-              tính theo địa điểm chụp thực tế và sẽ được xác nhận trước khi chốt
-              lịch.
-            </p>
+          <div className="mt-5 flex items-start gap-3.5 border-t border-dark-12 pt-5 sm:mt-6 sm:pt-6">
+            <TravelBikeIcon
+              size={20}
+              className="mt-0.5 shrink-0 text-brand-60"
+            />
+            <div className="min-w-0">
+              <h3 className="text-[15px] font-semibold leading-snug text-absolutewhite">
+                Chi phí di chuyển
+              </h3>
+              <p className="mt-1.5 max-w-[68ch] text-sm leading-6 text-grey-70">
+                Giá gói chưa bao gồm chi phí di chuyển. Phí di chuyển được ước
+                tính theo địa điểm chụp thực tế và sẽ được xác nhận trước khi
+                chốt lịch.
+              </p>
+            </div>
           </div>
         </div>
       </div>

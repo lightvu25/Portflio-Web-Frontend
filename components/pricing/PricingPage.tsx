@@ -1174,19 +1174,14 @@ function PricingPageContent({
         {/* 4. 4-step Booking Process with 4 large display numbers */}
         <div className="mx-auto max-w-[1400px] px-5 pt-12 pb-16 md:px-10 md:pt-16">
           <Reveal from="up">
-            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-brand-55">
-                  Quy trình đặt lịch
-                </p>
-                <h2 className="mt-2 font-semibold text-3xl font-semibold text-absolutewhite md:text-4xl">
-                  Giữ lịch trong 4 bước
-                </h2>
-                <p className="mt-1.5 text-sm text-grey-50">
-                  Giữ lịch chụp với Bấu trong 4 bước gọn gàng.
-                </p>
-              </div>
-              <p className="inline-flex items-center gap-2 rounded-full bg-brand-55/10 px-4 py-2 text-xs font-medium text-absolutewhite">
+            <div className="flex flex-col items-start">
+              <p className="font-medium text-xs font-medium uppercase tracking-[0.14em] text-brand-55">
+                Quy trình đặt lịch
+              </p>
+              <h2 className="mt-2 font-semibold text-3xl font-semibold text-absolutewhite md:text-4xl">
+                Giữ lịch trong 4 bước
+              </h2>
+              <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-brand-55/10 px-4 py-2 text-xs font-medium text-absolutewhite">
                 <span aria-hidden="true" className="h-2 w-2 rounded-full bg-brand-55" />
                 Hạn giao ảnh: sau 1 tuần kể từ khi khách chọn ảnh.
               </p>
