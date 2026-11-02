@@ -10,7 +10,28 @@
  */
 
 import { apiFetch } from "./client";
+import { normalizeCloudinaryCropUrl } from "../crop";
 import type { Photo, PhotoUpdateRequest } from "@/types/photo";
+
+function normalizePhoto(photo: Photo): Photo {
+  const nextImageUrl = normalizeCloudinaryCropUrl(photo.imageUrl);
+  const nextThumbUrl =
+    photo.thumbnailUrl != null
+      ? normalizeCloudinaryCropUrl(photo.thumbnailUrl)
+      : photo.thumbnailUrl;
+  if (nextImageUrl === photo.imageUrl && nextThumbUrl === photo.thumbnailUrl) {
+    return photo;
+  }
+  return {
+    ...photo,
+    imageUrl: nextImageUrl,
+    thumbnailUrl: nextThumbUrl,
+  };
+}
+
+function normalizePhotoList(photos: Photo[]): Photo[] {
+  return photos.map(normalizePhoto);
+}
 
 export interface PhotoUploadSignatureTicket {
   signature: string;
@@ -59,27 +80,27 @@ export class CloudinaryDirectUploadError extends Error {
 // ---------- Public ----------
 
 export function getGallery(): Promise<Photo[]> {
-  return apiFetch<Photo[]>("/api/gallery");
+  return apiFetch<Photo[]>("/api/gallery").then(normalizePhotoList);
 }
 
 /** Published customer-feedback screenshots (Feedback category only). */
 export function getFeedbackPhotos(): Promise<Photo[]> {
-  return apiFetch<Photo[]>("/api/gallery/feedback");
+  return apiFetch<Photo[]>("/api/gallery/feedback").then(normalizePhotoList);
 }
 
 /** Published homepage scroll-driven hero photos (Scroll category only). */
 export function getScrollPhotos(): Promise<Photo[]> {
-  return apiFetch<Photo[]>("/api/gallery/scroll");
+  return apiFetch<Photo[]>("/api/gallery/scroll").then(normalizePhotoList);
 }
 
 export function getFeaturedPhotos(): Promise<Photo[]> {
-  return apiFetch<Photo[]>("/api/gallery/featured");
+  return apiFetch<Photo[]>("/api/gallery/featured").then(normalizePhotoList);
 }
 
 // ---------- Admin ----------
 
 export function getAdminPhotos(token: string): Promise<Photo[]> {
-  return apiFetch<Photo[]>("/api/admin/photos", { token });
+  return apiFetch<Photo[]>("/api/admin/photos", { token }).then(normalizePhotoList);
 }
 
 /**
@@ -209,7 +230,7 @@ export function completePhotoUpload(
     body: payload,
     token,
     signal,
-  });
+  }).then(normalizePhoto);
 }
 
 /**
@@ -278,24 +299,38 @@ export function bulkUpdatePhotoCategories(
   token: string,
   request: { photoIds: number[]; addCategoryIds?: number[]; removeCategoryIds?: number[] },
 ): Promise<Photo[]> {
-  return apiFetch<Photo[]>("/api/admin/photos/bulk-categories", { method: "PUT", body: request, token });
+  return apiFetch<Photo[]>("/api/admin/photos/bulk-categories", {
+    method: "PUT",
+    body: request,
+    token,
+  }).then(normalizePhotoList);
 }
 
 export function updatePhoto(token: string, id: number, request: PhotoUpdateRequest): Promise<Photo> {
-  return apiFetch<Photo>(`/api/admin/photos/${id}`, { method: "PUT", body: request, token });
+  return apiFetch<Photo>(`/api/admin/photos/${id}`, { method: "PUT", body: request, token }).then(
+    normalizePhoto,
+  );
 }
 
 /** Atomic batch reorder — one request persists the final order. */
 export function reorderPhotos(token: string, items: { id: number; sortOrder: number }[]): Promise<Photo[]> {
-  return apiFetch<Photo[]>("/api/admin/photos/reorder", { method: "PUT", body: items, token });
+  return apiFetch<Photo[]>("/api/admin/photos/reorder", {
+    method: "PUT",
+    body: items,
+    token,
+  }).then(normalizePhotoList);
 }
 
 export function publishPhoto(token: string, id: number): Promise<Photo> {
-  return apiFetch<Photo>(`/api/admin/photos/${id}/publish`, { method: "POST", token });
+  return apiFetch<Photo>(`/api/admin/photos/${id}/publish`, { method: "POST", token }).then(
+    normalizePhoto,
+  );
 }
 
 export function unpublishPhoto(token: string, id: number): Promise<Photo> {
-  return apiFetch<Photo>(`/api/admin/photos/${id}/unpublish`, { method: "POST", token });
+  return apiFetch<Photo>(`/api/admin/photos/${id}/unpublish`, { method: "POST", token }).then(
+    normalizePhoto,
+  );
 }
 
 export function deletePhoto(token: string, id: number): Promise<void> {

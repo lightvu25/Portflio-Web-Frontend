@@ -24,6 +24,13 @@ import {
 import type { Category } from "@/types/category";
 import type { Photo, PhotoStatus } from "@/types/photo";
 import { CropEditor, type CropFraction } from "@/components/admin/photos/CropEditor";
+import {
+  buildCloudinaryCropPreviewUrl,
+  createCroppedPreviewBlob,
+  extractSavedCrop,
+  getOriginalPhotoUrl,
+  normalizeCloudinaryCropUrl,
+} from "@/lib/crop";
 import { Badge, Btn, Card, inputCls, labelCls, Modal, Spinner } from "@/components/admin/ui";
 import {
   formatUploadProgressText,
@@ -75,7 +82,14 @@ function categoryTypeBadge(c: Category): { label: string; cls: string } {
 
 function resolveAdminPreviewUrl(p: Photo): string {
   const raw = p.thumbnailUrl ?? p.imageUrl;
-  return raw.replace("/w_400,c_fill,", "/w_600,c_limit,");
+  return normalizeCloudinaryCropUrl(raw.replace("/w_400,c_fill,", "/w_600,c_limit,"));
+}
+
+function revokePendingObjectUrls(
+  item: Pick<PendingFile, "preview" | "croppedPreview">,
+): void {
+  if (item.preview) URL.revokeObjectURL(item.preview);
+  if (item.croppedPreview) URL.revokeObjectURL(item.croppedPreview);
 }
 
 /**
@@ -195,7 +209,7 @@ export function AdminPhotosPage() {
       uploadAbortRef.current?.abort();
       uploadAbortRef.current = null;
       uploadLockRef.current = false;
-      pendingRef.current.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
+      pendingRef.current.forEach(revokePendingObjectUrls);
     };
   }, []);
 
@@ -261,6 +275,7 @@ export function AdminPhotosPage() {
         key: `${file.name}-${batchSeq}-${i}`,
         file,
         preview: null,
+        croppedPreview: null,
         title: file.name.replace(/\.[^.]+$/, ""),
         sortOrder: baseSortOrder + i + 1,
         categoryIds: defaultCategoryIds,
@@ -348,11 +363,37 @@ export function AdminPhotosPage() {
 
   const removePending = (key: string) => {
     const item = pendingRef.current.find((p) => p.key === key);
-    if (item?.preview) URL.revokeObjectURL(item.preview);
+    if (item) revokePendingObjectUrls(item);
     const next = pendingRef.current.filter((p) => p.key !== key);
     pendingRef.current = next;
     setPending(next);
   };
+
+  const applyPendingCrop = (
+    targetKey: string,
+    crop: CropFraction | null,
+    nextCroppedPreview: string | null,
+  ) => {
+    const current = pendingRef.current.find((p) => p.key === targetKey);
+    if (!current || unmountedRef.current) {
+      if (nextCroppedPreview) URL.revokeObjectURL(nextCroppedPreview);
+      setCropKey(null);
+      return;
+    }
+    if (current.croppedPreview && current.croppedPreview !== nextCroppedPreview) {
+      URL.revokeObjectURL(current.croppedPreview);
+    }
+    syncPatchPending(targetKey, {
+      crop,
+      croppedPreview: nextCroppedPreview,
+    });
+    setCropKey(null);
+  };
+
+  const activeCropItem = useMemo(
+    () => (cropKey ? (pending.find((p) => p.key === cropKey) ?? null) : null),
+    [cropKey, pending],
+  );
 
   /**
    * Sequential upload with strict concurrency = 1.
@@ -394,7 +435,7 @@ export function AdminPhotosPage() {
       if (aborted || unmountedRef.current) return;
 
       // Remove finished cards (revoking their preview URLs) once per batch while keeping failed items for retry.
-      pendingRef.current.forEach((p) => p.state === "done" && p.preview && URL.revokeObjectURL(p.preview));
+      pendingRef.current.forEach((p) => p.state === "done" && revokePendingObjectUrls(p));
       const remaining = pendingRef.current.filter((p) => p.state !== "done");
       pendingRef.current = remaining;
       setPending(remaining);
@@ -1108,34 +1149,21 @@ export function AdminPhotosPage() {
               {formatUploadProgressText(pending)}
             </p>
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {pending.map((p) => (
+              {pending.map((p) => {
+                const cardPreviewSrc = p.croppedPreview ?? p.preview;
+                return (
                 <div
                   key={p.key}
                   className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
                 >
                   <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-gray-200">
-                    {p.preview ? (
-                      p.crop ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
-                        <img
-                          src={p.preview}
-                          alt={p.title}
-                          className="absolute"
-                          style={{
-                            left: `${(-p.crop.cropX / p.crop.cropW) * 100}%`,
-                            top: `${(-p.crop.cropY / p.crop.cropH) * 100}%`,
-                            width: `${100 / p.crop.cropW}%`,
-                            height: `${100 / p.crop.cropH}%`,
-                          }}
-                        />
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
-                        <img
-                          src={p.preview}
-                          alt={p.title}
-                          className="h-full w-full object-contain"
-                        />
-                      )
+                    {cardPreviewSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
+                      <img
+                        src={cardPreviewSrc}
+                        alt={p.title}
+                        className="h-full w-full object-contain"
+                      />
                     ) : (
                       <div className="flex h-full items-center justify-center text-xs text-gray-400">
                         {p.state === "error" ? "Không xem trước được" : "Đang tạo xem trước…"}
@@ -1242,7 +1270,8 @@ export function AdminPhotosPage() {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </Card>
         </div>
@@ -1717,23 +1746,16 @@ export function AdminPhotosPage() {
         />
       )}
 
-      {cropKey &&
-        (() => {
-          const item = pending.find((p) => p.key === cropKey);
-          if (!item?.preview) return null;
-          return (
-            <CropEditor
-              src={item.preview}
-              title={`Cắt ảnh: ${item.title || item.file.name}`}
-              initial={item.crop}
-              onClose={() => setCropKey(null)}
-              onApply={(crop) => {
-                patchPending(cropKey, { crop });
-                setCropKey(null);
-              }}
-            />
-          );
-        })()}
+      {activeCropItem && !activeCropItem.unrecoverableFormatError && (
+        <PendingPhotoCropModal
+          key={activeCropItem.key}
+          item={activeCropItem}
+          onClose={() => setCropKey(null)}
+          onApply={(crop, nextCroppedPreview) =>
+            applyPendingCrop(activeCropItem.key, crop, nextCroppedPreview)
+          }
+        />
+      )}
 
       {bulkOpen && (
         <BulkCategoryModal
@@ -1838,6 +1860,55 @@ function BulkCategoryModal({
   );
 }
 
+function PendingPhotoCropModal({
+  item,
+  onClose,
+  onApply,
+}: {
+  item: PendingFile;
+  onClose: () => void;
+  onApply: (crop: CropFraction | null, croppedPreview: string | null) => void;
+}) {
+  const [originalSrc, setOriginalSrc] = useState<string | null>(null);
+
+  // Always crop against a temporary Object URL of the untouched original File
+  // (never the downscaled 960px card preview), revoking it when closed/unmounted.
+  useEffect(() => {
+    let cancelled = false;
+    const url = URL.createObjectURL(item.file);
+    queueMicrotask(() => {
+      if (!cancelled) setOriginalSrc(url);
+    });
+    return () => {
+      cancelled = true;
+      URL.revokeObjectURL(url);
+    };
+  }, [item.file]);
+
+  if (!originalSrc) return null;
+
+  return (
+    <CropEditor
+      src={originalSrc}
+      title={`Cắt ảnh: ${item.title || item.file.name}`}
+      initial={item.crop}
+      onClose={onClose}
+      onApply={async (crop) => {
+        if (!crop) {
+          onApply(null, null);
+          return;
+        }
+        const blob = await createCroppedPreviewBlob(item.file, crop, {
+          maxEdge: PREVIEW_EDGE,
+          mimeType: item.file.type,
+        });
+        const previewUrl = URL.createObjectURL(blob);
+        onApply(crop, previewUrl);
+      }}
+    />
+  );
+}
+
 function EditPhotoModal({
   photo,
   categories,
@@ -1866,11 +1937,45 @@ function EditPhotoModal({
   const [cropAction, setCropAction] = useState<
     { kind: "unchanged" } | { kind: "set"; crop: CropFraction } | { kind: "cleared" }
   >({ kind: "unchanged" });
+  const [localCroppedPreview, setLocalCroppedPreview] = useState<string | null>(null);
+  const localCroppedPreviewRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (localCroppedPreviewRef.current) {
+        URL.revokeObjectURL(localCroppedPreviewRef.current);
+        localCroppedPreviewRef.current = null;
+      }
+    };
+  }, []);
+
+  const replaceLocalCroppedPreview = (nextUrl: string | null) => {
+    if (localCroppedPreviewRef.current && localCroppedPreviewRef.current !== nextUrl) {
+      URL.revokeObjectURL(localCroppedPreviewRef.current);
+    }
+    localCroppedPreviewRef.current = nextUrl;
+    setLocalCroppedPreview(nextUrl);
+  };
+
   const adminCat = categories.find(isAdminCategory);
-  const savedCrop: CropFraction | null =
-    photo.cropX != null && photo.cropY != null && photo.cropW != null && photo.cropH != null
-      ? { cropX: photo.cropX, cropY: photo.cropY, cropW: photo.cropW, cropH: photo.cropH }
-      : null;
+  const savedCrop = useMemo(() => extractSavedCrop(photo), [photo]);
+  const originalSrc = useMemo(() => getOriginalPhotoUrl(photo), [photo]);
+
+  const effectiveCrop: CropFraction | null =
+    cropAction.kind === "set"
+      ? cropAction.crop
+      : cropAction.kind === "cleared"
+        ? null
+        : savedCrop;
+
+  const effectivePreviewSrc = useMemo(() => {
+    if (localCroppedPreview) return localCroppedPreview;
+    if (!effectiveCrop) return originalSrc;
+    return (
+      buildCloudinaryCropPreviewUrl(originalSrc, effectiveCrop) ??
+      resolveAdminPreviewUrl(photo)
+    );
+  }, [localCroppedPreview, effectiveCrop, originalSrc, photo]);
 
   const toggleCat = (catId: number) => {
     if (catId === adminCat?.id) {
@@ -1979,8 +2084,16 @@ function EditPhotoModal({
             </p>
           )}
         </div>
-        <div className="flex items-center justify-between rounded-xl bg-gray-50 px-3.5 py-2.5">
-          <span className="text-xs text-gray-500">
+        <div className="flex items-center gap-3 rounded-xl bg-gray-50 px-3.5 py-2.5">
+          <div className="h-14 w-16 shrink-0 overflow-hidden rounded-lg bg-gray-200">
+            {/* eslint-disable-next-line @next/next/no-img-element -- Admin crop preview */}
+            <img
+              src={effectivePreviewSrc}
+              alt={title || "Xem trước vùng cắt"}
+              className="h-full w-full object-contain"
+            />
+          </div>
+          <span className="flex-1 text-xs text-gray-500">
             Vùng cắt:{" "}
             {cropAction.kind === "cleared"
               ? "sẽ bỏ cắt"
@@ -1991,7 +2104,7 @@ function EditPhotoModal({
                   : "ảnh gốc"}
           </span>
           <Btn variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => setCropOpen(true)}>
-            Cắt ảnh
+            {effectiveCrop ? "Sửa vùng cắt" : "Cắt ảnh"}
           </Btn>
         </div>
         <div className="flex justify-end gap-2 pt-2">
@@ -2005,12 +2118,27 @@ function EditPhotoModal({
       </div>
       {cropOpen && (
         <CropEditor
-          src={photo.originalImageUrl ?? photo.imageUrl}
+          src={originalSrc}
           title={`Cắt ảnh: ${photo.title ?? `#${photo.id}`}`}
-          initial={cropAction.kind === "set" ? cropAction.crop : savedCrop}
+          initial={effectiveCrop}
           onClose={() => setCropOpen(false)}
-          onApply={(crop) => {
-            setCropAction(crop ? { kind: "set", crop } : { kind: "cleared" });
+          onApply={async (crop) => {
+            if (!crop) {
+              replaceLocalCroppedPreview(null);
+              setCropAction({ kind: "cleared" });
+              setCropOpen(false);
+              return;
+            }
+            const cloudinaryPreview = buildCloudinaryCropPreviewUrl(originalSrc, crop);
+            if (!cloudinaryPreview) {
+              const blob = await createCroppedPreviewBlob(originalSrc, crop, {
+                maxEdge: PREVIEW_EDGE,
+              });
+              replaceLocalCroppedPreview(URL.createObjectURL(blob));
+            } else {
+              replaceLocalCroppedPreview(null);
+            }
+            setCropAction({ kind: "set", crop });
             setCropOpen(false);
           }}
         />
@@ -2085,7 +2213,7 @@ function PhotoZoomModal({
         <div className="overflow-hidden rounded-xl shadow-2xl">
           {/* eslint-disable-next-line @next/next/no-img-element -- Full-size preview in Admin */}
           <img
-            src={photo.imageUrl}
+            src={normalizeCloudinaryCropUrl(photo.imageUrl)}
             alt={photo.altText ?? pTitle(photo)}
             className="max-h-[82vh] max-w-[90vw] object-contain"
           />

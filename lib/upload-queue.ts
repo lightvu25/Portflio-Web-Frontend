@@ -27,6 +27,8 @@ export interface QueueUploadItem<TCrop = unknown> {
   file: File;
   /** Small canvas blob URL used ONLY for UI preview; never uploaded. */
   preview: string | null;
+  /** Optional Canvas-rendered preview URL of the cropped region; never uploaded. */
+  croppedPreview?: string | null;
   title: string;
   sortOrder: number;
   categoryIds: number[];
