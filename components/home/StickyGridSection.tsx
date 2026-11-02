@@ -2,12 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import type { HeroImageProgress } from "@/components/home/HomeHeroStage";
 import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap";
 import { isAdminCategory, isPackageCategory } from "@/lib/labels";
 import type { ResolvedSiteStats } from "@/lib/site-stats";
 import type { Photo } from "@/types/photo";
 import styles from "./StickyGridSection.module.css";
+
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 const GRID_COUNT = 12;
 const NUM_COLUMNS = 3;
@@ -40,10 +44,14 @@ export function StickyGridSection({
   photos,
   photographerName,
   stats,
+  isReady = true,
+  onLoadProgress,
 }: {
   photos: Photo[];
   photographerName?: string | null;
   stats: ResolvedSiteStats;
+  isReady?: boolean;
+  onLoadProgress?: (progress: HeroImageProgress) => void;
 }) {
   const blockRef = useRef<HTMLElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -53,6 +61,13 @@ export function StickyGridSection({
   const ctaRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const settledSlotsRef = useRef<Set<string>>(new Set());
+  const pendingDecodeSlotsRef = useRef<Set<string>>(new Set());
+  const activeBatchIdRef = useRef(0);
+  const onLoadProgressRef = useRef(onLoadProgress);
+  const isReadyRef = useRef(isReady);
+  const playEntranceRef = useRef<(() => void) | null>(null);
 
   const displayName = (photographerName?.trim() || "Bấu Chụp Choẹt").toUpperCase();
 
@@ -78,13 +93,174 @@ export function StickyGridSection({
     return cols;
   }, [photos]);
 
+  const expectedSlotKeys = useMemo(
+    () => gridColumns.flat().map((slot) => slot.slotKey),
+    [gridColumns],
+  );
+
+  useIsomorphicLayoutEffect(() => {
+    onLoadProgressRef.current = onLoadProgress;
+  }, [onLoadProgress]);
+
+  useIsomorphicLayoutEffect(() => {
+    isReadyRef.current = isReady;
+  }, [isReady]);
+
   // Debounced ScrollTrigger.refresh() as grid images finish decoding.
-  const handleImageLoad = useCallback(() => {
+  const scheduleScrollRefresh = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => {
       ScrollTrigger.refresh();
     }, 120);
   }, []);
+
+  const finalizeSlotSettled = useCallback(
+    (slotKey: string, batchId: number, totalCount: number) => {
+      if (activeBatchIdRef.current !== batchId) return;
+      if (settledSlotsRef.current.has(slotKey)) return;
+
+      settledSlotsRef.current.add(slotKey);
+      const loaded = settledSlotsRef.current.size;
+
+      if (loaded < totalCount) {
+        onLoadProgressRef.current?.({
+          loaded,
+          total: totalCount,
+          ready: false,
+        });
+        return;
+      }
+
+      // All unique hero slots have loaded; ensure any visible loop clones (e.g. Column 1 at -50%)
+      // are also decoded before signaling full readiness.
+      const cloneImgs = Array.from(
+        gridRef.current?.querySelectorAll<HTMLImageElement>('img[data-hero-clone="true"]') ?? [],
+      ).filter((img) => img.complete && img.naturalWidth > 0 && typeof img.decode === "function");
+
+      if (cloneImgs.length === 0) {
+        onLoadProgressRef.current?.({
+          loaded: totalCount,
+          total: totalCount,
+          ready: true,
+        });
+        return;
+      }
+
+      Promise.all(cloneImgs.map((img) => img.decode().catch(() => {}))).finally(() => {
+        if (activeBatchIdRef.current !== batchId) return;
+        onLoadProgressRef.current?.({
+          loaded: totalCount,
+          total: totalCount,
+          ready: true,
+        });
+      });
+    },
+    [],
+  );
+
+  const settleSlotWithDecode = useCallback(
+    (slotKey: string, imgEl: HTMLImageElement | null, batchId: number, totalCount: number) => {
+      if (activeBatchIdRef.current !== batchId) return;
+      if (
+        settledSlotsRef.current.has(slotKey) ||
+        pendingDecodeSlotsRef.current.has(slotKey)
+      ) {
+        return;
+      }
+
+      if (imgEl && imgEl.naturalWidth > 0 && typeof imgEl.decode === "function") {
+        pendingDecodeSlotsRef.current.add(slotKey);
+        imgEl
+          .decode()
+          .catch(() => {})
+          .finally(() => {
+            pendingDecodeSlotsRef.current.delete(slotKey);
+            finalizeSlotSettled(slotKey, batchId, totalCount);
+          });
+        return;
+      }
+
+      finalizeSlotSettled(slotKey, batchId, totalCount);
+    },
+    [finalizeSlotSettled],
+  );
+
+  // Scan pre-hydrated / memory-cached `<img>` elements immediately on mount.
+  useIsomorphicLayoutEffect(() => {
+    const batchId = ++activeBatchIdRef.current;
+    settledSlotsRef.current = new Set();
+    pendingDecodeSlotsRef.current = new Set();
+
+    const total = expectedSlotKeys.length;
+    if (total === 0) {
+      onLoadProgressRef.current?.({ loaded: 0, total: 0, ready: true });
+      return;
+    }
+
+    const slotImgs = Array.from(
+      gridRef.current?.querySelectorAll<HTMLImageElement>("img[data-hero-slot]") ?? [],
+    );
+
+    // Fast path for warm browser cache (e.g. SPA navigation back to `/`):
+    // if every slot image is already complete in memory, mark ready synchronously before paint.
+    if (
+      slotImgs.length >= total &&
+      slotImgs.every((img) => img.complete && img.naturalWidth > 0)
+    ) {
+      settledSlotsRef.current = new Set(expectedSlotKeys);
+      onLoadProgressRef.current?.({ loaded: total, total, ready: true });
+      return;
+    }
+
+    onLoadProgressRef.current?.({ loaded: 0, total, ready: false });
+
+    for (const img of slotImgs) {
+      const slotKey = img.dataset.heroSlot;
+      if (!slotKey) continue;
+      if (img.complete) {
+        if (img.naturalWidth > 0) {
+          settleSlotWithDecode(slotKey, img, batchId, total);
+        } else if (img.getAttribute("src")) {
+          finalizeSlotSettled(slotKey, batchId, total);
+        }
+      }
+    }
+  }, [expectedSlotKeys, finalizeSlotSettled, settleSlotWithDecode]);
+
+  const handleHeroImageLoad = useCallback(
+    (slotKey: string, isClone: boolean, imgEl: HTMLImageElement) => {
+      if (!isClone) {
+        scheduleScrollRefresh();
+        settleSlotWithDecode(
+          slotKey,
+          imgEl,
+          activeBatchIdRef.current,
+          expectedSlotKeys.length,
+        );
+      }
+    },
+    [expectedSlotKeys.length, scheduleScrollRefresh, settleSlotWithDecode],
+  );
+
+  const handleHeroImageError = useCallback(
+    (slotKey: string, isClone: boolean) => {
+      if (!isClone) {
+        finalizeSlotSettled(
+          slotKey,
+          activeBatchIdRef.current,
+          expectedSlotKeys.length,
+        );
+      }
+    },
+    [expectedSlotKeys.length, finalizeSlotSettled],
+  );
+
+  // Trigger entrance reveal + fresh ScrollTrigger measurement once the loading gate opens.
+  useEffect(() => {
+    if (!isReady) return;
+    ScrollTrigger.refresh();
+    playEntranceRef.current?.();
+  }, [isReady]);
 
   useGSAP(
     () => {
@@ -136,22 +312,21 @@ export function StickyGridSection({
         gsap.set(statEls, { autoAlpha: 0, y: 24 });
         gsap.set(ctaEls, { autoAlpha: 0, y: 24 });
 
-        // Initial page-load fade-in animation (targets inner elements so it never conflicts with ScrollTrigger)
-        const hasCameraIntro = Boolean(
-          document.querySelector('[data-camera-intro="active"]'),
-        );
-        const introDelay = hasCameraIntro ? 0.22 : 0.04;
-        const loadTl = gsap.timeline({ delay: introDelay });
+        // Initial page-load fade-in animation (paused until the hero image gate opens
+        // so it never finishes unseen behind the closed loading curtain).
+        gsap.set(panel, { autoAlpha: 0, scale: 0.94 });
+        gsap.set(polaroidEls, { autoAlpha: 0, scale: 0.9, y: 28 });
+        gsap.set(greetingItems, { autoAlpha: 0, y: 22 });
+
+        const loadTl = gsap.timeline({ paused: true });
         loadTl
-          .fromTo(
+          .to(
             panel,
-            { autoAlpha: 0, scale: 0.94 },
             { autoAlpha: 1, scale: 1, duration: 0.9, ease: "power2.out" },
             0,
           )
-          .fromTo(
+          .to(
             polaroidEls,
-            { autoAlpha: 0, scale: 0.9, y: 28 },
             {
               autoAlpha: 1,
               scale: 1,
@@ -163,9 +338,8 @@ export function StickyGridSection({
             },
             0.06,
           )
-          .fromTo(
+          .to(
             greetingItems,
-            { autoAlpha: 0, y: 22 },
             {
               autoAlpha: 1,
               y: 0,
@@ -175,6 +349,20 @@ export function StickyGridSection({
             },
             0.18,
           );
+
+        let entrancePlayed = false;
+        const playEntrance = () => {
+          if (entrancePlayed) return;
+          entrancePlayed = true;
+          const hasShutterIntro = Boolean(
+            document.querySelector('[data-camera-intro][data-mode="shutter"]'),
+          );
+          loadTl.delay(hasShutterIntro ? 0.14 : 0.02).play(0);
+        };
+        playEntranceRef.current = playEntrance;
+        if (isReadyRef.current) {
+          playEntrance();
+        }
 
         // Continuous vertical infinite auto-scroll per column:
         // Columns 0 & 2 drift upward (0% -> -50%), Column 1 drifts downward (-50% -> 0%).
@@ -374,6 +562,7 @@ export function StickyGridSection({
         ScrollTrigger.addEventListener("refreshInit", measureHeader);
 
         return () => {
+          playEntranceRef.current = null;
           ScrollTrigger.removeEventListener("refreshInit", measureHeader);
           document.removeEventListener("visibilitychange", updateAutoScrollState);
           visibilityObs?.disconnect();
@@ -546,8 +735,21 @@ export function StickyGridSection({
                               width={1000}
                               height={1250}
                               quality={100}
-                              sizes="(min-width: 1280px) 1000px, (min-width: 768px) 70vw, 100vw"
-                              onLoad={slot.isClone ? undefined : handleImageLoad}
+                              loading="eager"
+                              fetchPriority={itemIdx < 2 ? "high" : "auto"}
+                              sizes="(min-width: 1280px) 480px, (min-width: 768px) 32vw, 45vw"
+                              data-hero-slot={slot.isClone ? undefined : slot.slotKey}
+                              data-hero-clone={slot.isClone ? "true" : undefined}
+                              onLoad={(e) =>
+                                handleHeroImageLoad(
+                                  slot.slotKey,
+                                  slot.isClone,
+                                  e.currentTarget,
+                                )
+                              }
+                              onError={() =>
+                                handleHeroImageError(slot.slotKey, slot.isClone)
+                              }
                               className={styles.image}
                             />
                           </div>
