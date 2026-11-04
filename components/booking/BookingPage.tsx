@@ -266,8 +266,6 @@ function BookingFormInner({
     createdBooking && selected
       ? buildBookingCopyMessage({
           bookingCode: createdBooking.bookingCode,
-          status: createdBooking.status,
-          expiresAt: createdBooking.expiresAt,
           packageName: selected.name,
           sessionType: selected.sessionType,
           groupSize: selected.groupSize,

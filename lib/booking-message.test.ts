@@ -10,7 +10,7 @@ describe("booking-message helper", () => {
     expect(formatShootDateVi("2026-11-15")).toBe("15/11/2026");
   });
 
-  it("builds a complete message with PENDING status, note, and no secret tokens", () => {
+  it("builds a complete message without status or temporary hold expiry, and no secret tokens", () => {
     const msg = buildBookingCopyMessage({
       bookingCode: "BK-261115-ABCD",
       status: "PENDING",
@@ -29,8 +29,8 @@ describe("booking-message helper", () => {
     });
 
     expect(msg).toContain("Mã đặt lịch: BK-261115-ABCD");
-    expect(msg).toContain("Chờ xử lý (chưa xác nhận / chưa thanh toán cọc)");
-    expect(msg).toContain("Thời hạn giữ chỗ tạm thời:");
+    expect(msg).not.toContain("Trạng thái:");
+    expect(msg).not.toContain("Thời hạn giữ chỗ tạm thời:");
     expect(msg).toContain("Gói chụp: Gói Cá nhân - Nửa ngày (Nửa ngày · 1 người)");
     expect(msg).toContain("1.300.000 VNĐ");
     expect(msg).toContain("Ngày dự kiến chụp: 15/11/2026");

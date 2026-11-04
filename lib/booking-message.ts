@@ -1,5 +1,4 @@
 import {
-  bookingStatusLabel,
   formatVnd,
   sessionTypeLabel,
   slotLabel,
@@ -8,7 +7,7 @@ import type { BookingStatus, SessionType, Slot } from "../types/booking";
 
 export interface BookingMessageInput {
   bookingCode?: string | null;
-  status: BookingStatus;
+  status?: BookingStatus;
   expiresAt?: string | null;
   packageName: string;
   sessionType: SessionType;
@@ -55,10 +54,6 @@ export function formatHoldExpiryVi(expiresAt?: string | null): string | null {
  */
 export function buildBookingCopyMessage(input: BookingMessageInput): string {
   const code = input.bookingCode?.trim();
-  const statusText =
-    input.status === "PENDING"
-      ? `${bookingStatusLabel[input.status]} (chưa xác nhận / chưa thanh toán cọc)`
-      : bookingStatusLabel[input.status];
 
   const slotText =
     input.sessionType === "FULL_DAY"
@@ -73,12 +68,6 @@ export function buildBookingCopyMessage(input: BookingMessageInput): string {
 
   if (code) {
     lines.push(`- Mã đặt lịch: ${code}`);
-  }
-  lines.push(`- Trạng thái: ${statusText}`);
-
-  const expiryText = formatHoldExpiryVi(input.expiresAt);
-  if (expiryText && input.status === "PENDING") {
-    lines.push(`- Thời hạn giữ chỗ tạm thời: đến ${expiryText}`);
   }
 
   lines.push(
