@@ -20,6 +20,7 @@ import {
 } from "@/components/shared/contact";
 import { getCategories } from "@/lib/api/categories";
 import { getSiteSettings } from "@/lib/api/site";
+import { isAdminRoute } from "@/lib/auth/routes";
 import { isPublicPortfolioCategory } from "@/lib/labels";
 import {
   dispatchNavIntent,
@@ -48,7 +49,7 @@ export function SiteFooter() {
 
   const fetched = useRef(false);
   useEffect(() => {
-    if (fetched.current || pathname.startsWith("/admin")) return;
+    if (fetched.current || isAdminRoute(pathname)) return;
     fetched.current = true;
     getCategories().then(setCategories).catch(() => {});
     getSiteSettings().then(setSite).catch(() => {});
@@ -75,7 +76,7 @@ export function SiteFooter() {
   }, [publicCategories]);
 
   // Admin pages render their own chrome.
-  if (pathname.startsWith("/admin")) return null;
+  if (isAdminRoute(pathname)) return null;
 
   const facebookHref = resolveFacebookHref(site?.facebookUrl);
   const instagramHref = resolveInstagramHref(site?.instagramUrl);

@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * Admin auth hook — the ONLY client-side guard for /admin/* pages.
- * Returns the JWT or redirects to /admin/login when absent/expired (401).
+ * Admin auth hook — the ONLY client-side guard for admin portal pages.
+ * Returns the JWT or redirects to ADMIN_LOGIN_PATH when absent/expired (401).
  */
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "@/lib/api/client";
+import { ADMIN_LOGIN_PATH } from "./routes";
 import { clearAdminToken, getAdminToken } from "./token";
 
 export function useAdmin() {
@@ -17,14 +18,14 @@ export function useAdmin() {
 
   const logout = useCallback(() => {
     clearAdminToken();
-    router.replace("/admin/login");
+    router.replace(ADMIN_LOGIN_PATH);
   }, [router]);
 
   useEffect(() => {
     queueMicrotask(() => {
       const t = getAdminToken();
-      if (!t && pathname !== "/admin/login") {
-        router.replace("/admin/login");
+      if (!t && pathname !== ADMIN_LOGIN_PATH) {
+        router.replace(ADMIN_LOGIN_PATH);
         return;
       }
       setToken(t);

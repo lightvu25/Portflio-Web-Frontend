@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { isAdminRoute } from "@/lib/auth/routes";
 import {
   dispatchNavIntent,
   smoothScrollToTop,
@@ -75,7 +76,7 @@ export function SiteHeader() {
   }, [effectivePath]);
 
   // Admin pages render their own chrome.
-  if (pathname.startsWith("/admin")) return null;
+  if (isAdminRoute(pathname)) return null;
 
   const handleNavClick = (
     e: React.MouseEvent<HTMLAnchorElement>,

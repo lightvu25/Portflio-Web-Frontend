@@ -3,17 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { ADMIN_BASE_PATH, ADMIN_LOGIN_PATH } from "@/lib/auth/routes";
 import { useAdmin } from "@/lib/auth/useAdmin";
 
 const navItems = [
-  { label: "Tổng quan", href: "/admin", icon: "◉" },
-  { label: "Hình ảnh", href: "/admin/photos", icon: "▤" },
-  { label: "Danh mục", href: "/admin/categories", icon: "❏" },
-  { label: "Lịch đặt", href: "/admin/bookings", icon: "◷" },
-  { label: "Thanh toán", href: "/admin/payments", icon: "₫" },
-  { label: "Cảm nhận", href: "/admin/feedback", icon: "✎" },
-  { label: "Bảng giá", href: "/admin/pricing", icon: "≡" },
-  { label: "Cài đặt", href: "/admin/settings", icon: "⚙" },
+  { label: "Tổng quan", href: ADMIN_BASE_PATH, icon: "◉" },
+  { label: "Hình ảnh", href: `${ADMIN_BASE_PATH}/photos`, icon: "▤" },
+  { label: "Danh mục", href: `${ADMIN_BASE_PATH}/categories`, icon: "❏" },
+  { label: "Lịch đặt", href: `${ADMIN_BASE_PATH}/bookings`, icon: "◷" },
+  { label: "Thanh toán", href: `${ADMIN_BASE_PATH}/payments`, icon: "₫" },
+  { label: "Cảm nhận", href: `${ADMIN_BASE_PATH}/feedback`, icon: "✎" },
+  { label: "Bảng giá", href: `${ADMIN_BASE_PATH}/pricing`, icon: "≡" },
+  { label: "Cài đặt", href: `${ADMIN_BASE_PATH}/settings`, icon: "⚙" },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
@@ -21,7 +22,10 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="flex flex-col gap-1 px-3" aria-label="Admin">
       {navItems.map((item) => {
-        const active = item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
+        const active =
+          item.href === ADMIN_BASE_PATH
+            ? pathname === ADMIN_BASE_PATH
+            : pathname.startsWith(item.href);
         return (
           <Link
             key={item.href}
@@ -69,7 +73,7 @@ function SidebarInner({ onNavigate, onLogout }: { onNavigate?: () => void; onLog
 /**
  * Admin shell — Horizon-style: light content bg, white sidebar with green
  * active pill, top navbar with page title + logout. Self-guards: without a
- * token it redirects to /admin/login. The login page itself renders bare.
+ * token it redirects to ADMIN_LOGIN_PATH. The login page itself renders bare.
  */
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -77,7 +81,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Login page renders without the admin chrome.
-  if (pathname === "/admin/login") return <>{children}</>;
+  if (pathname === ADMIN_LOGIN_PATH) return <>{children}</>;
 
   if (!ready || !token) {
     return (
@@ -87,7 +91,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
     );
   }
 
-  const current = navItems.find((i) => (i.href === "/admin" ? pathname === "/admin" : pathname.startsWith(i.href)));
+  const current = navItems.find((i) =>
+    i.href === ADMIN_BASE_PATH
+      ? pathname === ADMIN_BASE_PATH
+      : pathname.startsWith(i.href),
+  );
 
   return (
     <div className="min-h-screen bg-[#f4f7fe] text-gray-900 [font-family:ui-sans-serif,system-ui,Arial,sans-serif]">

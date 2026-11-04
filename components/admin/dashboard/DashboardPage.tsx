@@ -6,6 +6,7 @@ import { confirmBooking, deleteBooking, getAdminBookings } from "@/lib/api/booki
 import { getAdminFeedback } from "@/lib/api/feedback";
 import { getPayments } from "@/lib/api/payments";
 import { getAdminPhotos } from "@/lib/api/photos";
+import { ADMIN_BASE_PATH } from "@/lib/auth/routes";
 import { useAdmin } from "@/lib/auth/useAdmin";
 import { bookingStatusColor, bookingStatusLabel, formatDateTime } from "@/lib/labels";
 import type { Booking } from "@/types/booking";
@@ -205,7 +206,7 @@ export function AdminDashboardPage() {
             )}
           </div>
           <Link
-            href="/admin/bookings"
+            href={`${ADMIN_BASE_PATH}/bookings`}
             className="text-sm font-semibold text-green-600 hover:text-green-800"
           >
             Xem tất cả →

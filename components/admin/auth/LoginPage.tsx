@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { login } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
+import { ADMIN_BASE_PATH } from "@/lib/auth/routes";
 import { setAdminToken } from "@/lib/auth/token";
 
-/** Admin login — POST /api/auth/login → JWT in localStorage → /admin. */
+/** Admin login — POST /api/auth/login → JWT in localStorage → ADMIN_BASE_PATH. */
 export function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -21,7 +22,7 @@ export function AdminLoginPage() {
     try {
       const res = await login({ email, password });
       setAdminToken(res.accessToken);
-      router.replace("/admin");
+      router.replace(ADMIN_BASE_PATH);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError("Email hoặc mật khẩu không đúng.");
